@@ -17,113 +17,36 @@ namespace Micro_Architecture
     {
         static Device device;
         static SwapChain swapChain;
-        static InputLayout wireLayout;
-        static InputLayout gateLayout;
+        static InputLayout Layout;
         static RenderTargetView renderView;
-        static SlimDX.Direct3D11.Buffer wireVertices;
-        static Int32 wireCount;
-        static Int32 gateCount;
-        static SlimDX.Direct3D11.Buffer gateVertices;
+        static SlimDX.Direct3D11.Buffer quadVertices;
         static Effect effect;
-        static Effect circuitSimulationCSEffect;
-        static EffectTechnique wireTechnique;
-        static EffectTechnique gateTechnique;
-        static EffectPass wirePass;
-        static EffectPass gatePass;
-        static EffectVariable viewPos;
-        static EffectVariable viewScale;
+        static ComputeShader particlePointOutputCS;
+        static ComputeShader voltageInputCS;
+        static EffectTechnique technique;
+        static EffectPass pass;
         static Vector2 scale;
         static Vector2 pos;
-        static bool LeftDown;
-        static Texture2D gateTexture;
-        static ShaderResourceView gateSRV;
-        static Texture2D voltages1;
-        static Texture2D voltages2;
-        static ShaderResourceView voltagesSRV1;
-        static ShaderResourceView voltagesSRV2;
-        static UnorderedAccessView voltagesUAV1;
-        static UnorderedAccessView voltagesUAV2;
-        static EffectResourceVariable voltagesShaderTexture;
+        static Texture2D renderTexture;
+        static ShaderResourceView renderSRV;
+        static UnorderedAccessView renderUAV;
 
-        static bool isSimulating = false;
+        static bool leftDown = false;
 
         static void Main(string[] args)
         {
             var form = InitD3D();
             InitRAWInput();
-            LoadCircuit();
-            InitVoltageTextures();
+            InitRenderTextureAndVB();
 
             MessagePump.Run(form, SimMain);
-
-            wireVertices.Dispose();
-            gateVertices.Dispose();
-            wireLayout.Dispose();
+            
+            quadVertices.Dispose();
             renderView.Dispose();
             device.Dispose();
             swapChain.Dispose();
 
         }
-
-        static void InitRAWInput()
-        {
-            SlimDX.RawInput.Device.RegisterDevice(SlimDX.Multimedia.UsagePage.Generic, SlimDX.Multimedia.UsageId.Mouse, SlimDX.RawInput.DeviceFlags.None);
-            SlimDX.RawInput.Device.MouseInput += new System.EventHandler<SlimDX.RawInput.MouseInputEventArgs>(Device_MouseInput);
-        }
-
-        static void InitVoltageTextures()
-        {
-            Texture2DDescription desc = new Texture2DDescription()
-            {
-                ArraySize = 1,
-                BindFlags = BindFlags.ShaderResource | BindFlags.UnorderedAccess,
-                CpuAccessFlags = CpuAccessFlags.None,
-                Format = Format.R8_UInt,
-                Height = 1024,
-                Width = 1024,
-                MipLevels = 1,
-                OptionFlags = ResourceOptionFlags.None,
-                SampleDescription = new SampleDescription()
-                {
-                    Count = 1,
-                    Quality = 0,
-                },
-                Usage = ResourceUsage.Default
-            };
-
-            voltages1 = new Texture2D(device, desc);
-            voltages2 = new Texture2D(device, desc);
-
-            voltagesSRV1 = new ShaderResourceView(device, voltages1);
-            voltagesUAV1 = new UnorderedAccessView(device, voltages1);
-
-            voltagesSRV2 = new ShaderResourceView(device, voltages2);
-            voltagesUAV2 = new UnorderedAccessView(device, voltages2);
-        }
-
-        static void Device_MouseInput(object sender, SlimDX.RawInput.MouseInputEventArgs e)
-        {
-            if ((e.ButtonFlags & SlimDX.RawInput.MouseButtonFlags.LeftDown) == SlimDX.RawInput.MouseButtonFlags.LeftDown)
-                LeftDown = true;
-            if ((e.ButtonFlags & SlimDX.RawInput.MouseButtonFlags.LeftUp) == SlimDX.RawInput.MouseButtonFlags.LeftUp)
-                LeftDown = false;
-
-            if (LeftDown)
-            {
-                pos.X += e.X  * 3.0f / 1920.0f;
-                pos.Y -= e.Y * 3.0f / 1080.0f;
-            }
-
-            scale.X -= e.WheelDelta / 1920.0f;
-            scale.Y -= e.WheelDelta / 1080.0f;
-
-            if (scale.X < 0.0f)
-            {
-                scale.X = 100.0f / 1920.0f;
-                scale.Y = 100.0f / 1080.0f;
-            }
-        }
-
         static SlimDX.Windows.RenderForm InitD3D()
         {
             var form = new RenderForm("Micro Architecture");
@@ -151,12 +74,12 @@ namespace Micro_Architecture
             renderView = new RenderTargetView(device, backBuffer);
             var bytecode = ShaderBytecode.CompileFromFile("MiniTri.fx", "fx_5_0", ShaderFlags.None, EffectFlags.None);
             effect = new Effect(device, bytecode);
-            var csBytecode = ShaderBytecode.CompileFromFile("VoltagePropogator.hlsl", "fx_5_0", ShaderFlags.None, EffectFlags.None);
-            circuitSimulationCSEffect = new Effect(device, csBytecode);
-            wireTechnique = effect.GetTechniqueByIndex(0);
-            wirePass = wireTechnique.GetPassByIndex(0);
-            gateTechnique = effect.GetTechniqueByIndex(1);
-            gatePass = gateTechnique.GetPassByIndex(0);
+            var csBytecode = ShaderBytecode.CompileFromFile("SimulationComputeShaders.hlsl", "OutputParticlePoints", "cs_5_0", ShaderFlags.None, EffectFlags.None);
+            particlePointOutputCS = new ComputeShader(device, csBytecode);
+            var inputBytecode = ShaderBytecode.CompileFromFile("VoltagePropogator.hlsl", "UpdateInputPins", "cs_5_0", ShaderFlags.None, EffectFlags.None);
+            voltageInputCS = new ComputeShader(device, inputBytecode);
+            technique = effect.GetTechniqueByIndex(0);
+            pass = technique.GetPassByIndex(0);
 
             RasterizerStateDescription rsd = new RasterizerStateDescription()
             {
@@ -169,7 +92,7 @@ namespace Micro_Architecture
                 IsFrontCounterclockwise = false,
                 IsMultisampleEnabled = false,
                 IsScissorEnabled = false,
-                SlopeScaledDepthBias = 0.0f             
+                SlopeScaledDepthBias = 0.0f
             };
 
             RasterizerState rs = RasterizerState.FromDescription(device, rsd);
@@ -178,172 +101,153 @@ namespace Micro_Architecture
             device.ImmediateContext.OutputMerger.SetTargets(renderView);
             device.ImmediateContext.Rasterizer.SetViewports(new Viewport(0, 0, form.ClientSize.Width, form.ClientSize.Height, 0.0f, 1.0f));
 
-            viewPos = effect.GetVariableByName("viewPos");
-            viewScale = effect.GetVariableByName("viewScale");
-
             scale = new Vector2(1000.0f / 1920.0f, 1000.0f / 1080.0f);
             pos = new Vector2(0.0f, 0.0f);
 
             /*bytecode.Dispose();
             effect.Dispose();
             backBuffer.Dispose();*/
-            
+
             return form;
         }
 
+        static void InitRAWInput()
+        {
+            SlimDX.RawInput.Device.RegisterDevice(SlimDX.Multimedia.UsagePage.Generic, SlimDX.Multimedia.UsageId.Mouse, SlimDX.RawInput.DeviceFlags.None);
+            SlimDX.RawInput.Device.MouseInput += new System.EventHandler<SlimDX.RawInput.MouseInputEventArgs>(Device_MouseInput);
+        }
+
+       
+
+        static void Device_MouseInput(object sender, SlimDX.RawInput.MouseInputEventArgs e)
+        {
+            if ((e.ButtonFlags & SlimDX.RawInput.MouseButtonFlags.LeftDown) == SlimDX.RawInput.MouseButtonFlags.LeftDown)
+                leftDown = true;
+            if ((e.ButtonFlags & SlimDX.RawInput.MouseButtonFlags.LeftUp) == SlimDX.RawInput.MouseButtonFlags.LeftUp)
+                leftDown = false;
+
+            if (leftDown)
+            {
+                pos.X += e.X  * 3.0f / 1920.0f;
+                pos.Y -= e.Y * 3.0f / 1080.0f;
+            }
+
+            scale.X -= e.WheelDelta / 1920.0f;
+            scale.Y -= e.WheelDelta / 1080.0f;
+
+            if (scale.X < 0.0f)
+            {
+                scale.X = 100.0f / 1920.0f;
+                scale.Y = 100.0f / 1080.0f;
+            }
+        }
+
+        /// <summary>
+        /// The main loop function that gets called by the SlimDX message pump,
+        /// specifically do a simulation update step then draw the result to the
+        /// screen
+        /// </summary>
         static void SimMain()
         {
-            Draw();
-
-            if (isSimulating)
-            {
-                PropogateSignal();
-            }
+            OutputSimulationResults();
+            DrawRenderTextureToScreen(); 
 
             swapChain.Present(0, PresentFlags.None);
         }
 
-        static void Draw()
+        /// <summary>
+        /// Draws a full screen quad with the texture generated by the simulation
+        /// output stage
+        /// </summary>
+        static void DrawRenderTextureToScreen()
         {
             device.ImmediateContext.ClearRenderTargetView(renderView, Color.Black);
 
-            viewScale.AsVector().Set(scale);
-            viewPos.AsVector().Set(pos);
+            device.ImmediateContext.InputAssembler.InputLayout = Layout;
+            device.ImmediateContext.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
+            device.ImmediateContext.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(quadVertices, 32, 0));
 
-            DrawWires();
-            DrawGates();
+            effect.GetVariableByName("tx").AsResource().SetResource(renderSRV);
+
+            for (int i = 0; i < technique.Description.PassCount; ++i)
+            {
+                pass.Apply(device.ImmediateContext);
+                device.ImmediateContext.Draw(6, 0);
+            }
+
+            effect.GetVariableByName("tx").AsResource().SetResource(null);
+        }
+
+        static void OutputSimulationResults()
+        {
+            device.ImmediateContext.ComputeShader.Set(particlePointOutputCS);
+            device.ImmediateContext.ComputeShader.SetUnorderedAccessView(renderUAV, 0);
+            device.ImmediateContext.Dispatch(1280 / 32, 720 / 32, 1);
+            device.ImmediateContext.ComputeShader.SetUnorderedAccessView(null, 0);
         }
 
         /// <summary>
-        /// Draws all of the wires in the circuit to the screen, this binds the current voltage srv to the shader
-        /// which is used to calculate the colour of the wires for visual feedback on the current state of the circuit
+        /// Create the render texture that will display the state of the simulation,
+        /// also the VB for drawing a full screen quad, and the resource views
         /// </summary>
-        static void DrawWires()
-        {
-            voltagesShaderTexture.SetResource(voltagesSRV1);
-
-            device.ImmediateContext.InputAssembler.InputLayout = wireLayout;
-            device.ImmediateContext.InputAssembler.PrimitiveTopology = PrimitiveTopology.LineList;
-            device.ImmediateContext.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(wireVertices, 20, 0));
-
-            for (int i = 0; i < wireTechnique.Description.PassCount; ++i)
-            {
-                wirePass.Apply(device.ImmediateContext);
-                device.ImmediateContext.Draw(wireCount * 2, 0);
-            }
-        }
-
-        static void DrawGates()
-        {
-            device.ImmediateContext.InputAssembler.InputLayout = gateLayout;
-            device.ImmediateContext.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
-            device.ImmediateContext.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(gateVertices, 32, 0));
-
-            for (int i = 0; i < gateTechnique.Description.PassCount; ++i)
-            {
-                gatePass.Apply(device.ImmediateContext);
-                device.ImmediateContext.Draw(gateCount * 6, 0);
-            }
-        }
-
-        static void PropogateSignal()
-        {
-            
-        }
-
-        static void LoadCircuit()
-        {
-            var circuit = THDL.MicroArchNetwork.GenerateNetwork();
-
-            InitWireBuffer(circuit);
-            InitGateBuffer(circuit);
-        }
-
-        static void InitWireBuffer(THDL.Network circuit)
-        {
-            const int wireVertexSizeInBytes = 20;
-            wireCount = circuit.Wires.Count;
-            wireLayout = new InputLayout(device, wirePass.Description.Signature, new[] {
-                new InputElement("POSITION", 0, Format.R32G32B32A32_Float, 0, 0),
-                new InputElement("TEXCOORD", 0, Format.R32_UInt, 16, 0) 
-            });
-
-            var stream = new DataStream(wireCount * wireVertexSizeInBytes * 2, true, true);
-
-            foreach (var wire in circuit.Wires)
-            {
-                stream.Write(new Vector4(wire.Left, wire.Top * -1.0f, 0.5f, 1.0f));
-                stream.Write(wire.Input);
-                stream.Write(new Vector4(wire.Right, wire.Bottom * -1.0f, 0.5f, 1.0f));
-                stream.Write(wire.Input);
-            }
-            stream.Position = 0;
-
-            wireVertices = new SlimDX.Direct3D11.Buffer(device, stream, new BufferDescription()
-            {
-                BindFlags = BindFlags.VertexBuffer,
-                CpuAccessFlags = CpuAccessFlags.None,
-                OptionFlags = ResourceOptionFlags.None,
-                SizeInBytes = 2 * wireVertexSizeInBytes * wireCount,
-                Usage = ResourceUsage.Default
-            });
-
-            stream.Dispose();
-        }
-
-        static void InitGateBuffer(THDL.Network circuit)
+        static void InitRenderTextureAndVB()
         {
 
-            const int gateVertexSizeInBytes = 32;
-            gateCount = circuit.Gates.Count;
+            const int vertexSizeInBytes = 32;
 
-            gateLayout = new InputLayout(device, wirePass.Description.Signature, new[] {
+            Layout = new InputLayout(device, pass.Description.Signature, new[] {
                 new InputElement("POSITION", 0, Format.R32G32B32A32_Float, 0, 0),
                 new InputElement("TEXCOORD", 0, Format.R32G32B32A32_Float, 16, 0)
             });
             
-            var stream = new DataStream(gateCount * gateVertexSizeInBytes * 6, true, true);
+            var stream = new DataStream(vertexSizeInBytes * 6, true, true);
+            
+            stream.Write(new Vector4(-1.0f, -1.0f, 0.5f, 1.0f));
+            stream.Write(new Vector4( 0.0f,  1.0f, 0.5f, 1.0f));
+            stream.Write(new Vector4(-1.0f,  1.0f, 0.5f, 1.0f));
+            stream.Write(new Vector4( 0.0f,  0.0f, 0.5f, 1.0f));
+            stream.Write(new Vector4( 1.0f, -1.0f, 0.5f, 1.0f));
+            stream.Write(new Vector4( 1.0f,  1.0f, 0.5f, 1.0f));
 
-            foreach (var gate in circuit.Gates)
-            {
-                float texGateCount = 2.0f;
-                float gateStep = 1.0f / texGateCount;
-                float baseU = (Int32)gate.Type * gateStep;
-                float topU = baseU + gateStep;
-
-                stream.Write(new Vector4(gate.X + THDL.Gate.Input1XOffset, gate.Y * -1.0f - THDL.Gate.Input1YOffset, 0.5f, 1.0f));
-                stream.Write(new Vector4(baseU, 0, 0.5f, 1.0f));
-                stream.Write(new Vector4(gate.X + THDL.Gate.Input1XOffset, gate.Y * -1.0f + 0, 0.5f, 1.0f));
-                stream.Write(new Vector4(baseU, 1, 0.5f, 1.0f));
-                stream.Write(new Vector4(gate.X + THDL.Gate.Input2XOffset, gate.Y * -1.0f - THDL.Gate.Input1YOffset, 0.5f, 1.0f));
-                stream.Write(new Vector4(topU, 0, 0.5f, 1.0f));
-
-                stream.Write(new Vector4(gate.X + THDL.Gate.Input2XOffset, gate.Y * -1.0f - 0, 0.5f, 1.0f));
-                stream.Write(new Vector4(topU, 1, 0.5f, 1.0f));
-                stream.Write(new Vector4(gate.X + THDL.Gate.Input1XOffset, gate.Y * -1.0f + 0, 0.5f, 1.0f));
-                stream.Write(new Vector4(baseU, 1, 0.5f, 1.0f));
-                stream.Write(new Vector4(gate.X + THDL.Gate.Input2XOffset, gate.Y * -1.0f - THDL.Gate.Input1YOffset, 0.5f, 1.0f));
-                stream.Write(new Vector4(topU, 0, 0.5f, 1.0f));
-            }
-
+            stream.Write(new Vector4( 1.0f,  1.0f, 0.5f, 1.0f));
+            stream.Write(new Vector4( 1.0f,  0.0f, 0.5f, 1.0f));
+            stream.Write(new Vector4(-1.0f,  1.0f, 0.5f, 1.0f));
+            stream.Write(new Vector4( 0.0f,  0.0f, 0.5f, 1.0f));
+            stream.Write(new Vector4( 1.0f, -1.0f, 0.5f, 1.0f));
+            stream.Write(new Vector4( 1.0f,  1.0f, 0.5f, 1.0f));
             stream.Position = 0;
 
-            gateVertices = new SlimDX.Direct3D11.Buffer(device, stream, new BufferDescription()
+            quadVertices = new SlimDX.Direct3D11.Buffer(device, stream, new BufferDescription()
             {
                 BindFlags = BindFlags.VertexBuffer,
                 CpuAccessFlags = CpuAccessFlags.None,
                 OptionFlags = ResourceOptionFlags.None,
-                SizeInBytes = 6 * gateVertexSizeInBytes * gateCount,
+                SizeInBytes = 6 * vertexSizeInBytes,
                 Usage = ResourceUsage.Default
             });
 
             stream.Dispose();
 
-            gateTexture = Texture2D.FromFile(device, "Gates.png");
-            gateSRV = new ShaderResourceView(device, gateTexture);
-
-            effect.GetVariableByName("txGate").AsResource().SetResource(gateSRV);
-            voltagesShaderTexture = effect.GetVariableByName("txVoltages").AsResource();
+            Texture2DDescription renderTexDesc = new Texture2DDescription()
+            {
+                ArraySize = 1,
+                BindFlags = BindFlags.ShaderResource | BindFlags.UnorderedAccess,
+                CpuAccessFlags = CpuAccessFlags.None,
+                Format = Format.R8G8B8A8_UNorm,
+                Height = 720,
+                Width = 1280,
+                MipLevels = 1,
+                OptionFlags = ResourceOptionFlags.None,
+                SampleDescription = new SampleDescription()
+                {
+                    Count = 1,
+                    Quality = 0,
+                },
+                Usage = ResourceUsage.Default
+            };
+            renderTexture = new Texture2D(device, renderTexDesc);
+            renderSRV = new ShaderResourceView(device, renderTexture);
+            renderUAV = new UnorderedAccessView(device, renderTexture);
         }
     }
 }
