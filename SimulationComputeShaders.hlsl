@@ -1,12 +1,16 @@
 RWTexture2D<float> outputImage;
-//Texture2D OldVoltages;
 
-[numthreads(32, 32, 1)]
-void OutputParticlePoints( uint3 threadID : SV_DispatchThreadID )
+struct ParticleBox
 {
-	float dist = sqrt(threadID.x*threadID.x + threadID.y*threadID.y);
-	if (dist > 500)
-	{
-		outputImage[threadID.xy] = 155;
-	}
+	int3 positions[8];
+};
+
+StructuredBuffer<ParticleBox> particlesOut : register(t1);
+
+[numthreads(8, 1, 1)]
+void OutputParticlePoints( uint3 threadID : SV_GroupThreadID, uint3 threadGroupID : SV_GroupID )
+{
+	int3 pos = particlesOut[threadGroupID.x].positions[threadID.x];
+	
+	outputImage[pos.xy] = 0.5f;
 }
