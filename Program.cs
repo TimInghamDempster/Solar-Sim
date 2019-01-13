@@ -22,7 +22,7 @@ namespace Micro_Architecture
         static SlimDX.Direct3D11.Buffer quadVertices;
         static Effect effect;
         static ComputeShader particlePointOutputCS;
-        static ComputeShader voltageInputCS;
+        static ComputeShader updateParticlePositionsCS;
         static EffectTechnique technique;
         static EffectPass pass;
         static Vector2 scale;
@@ -33,6 +33,9 @@ namespace Micro_Architecture
         static SlimDX.Direct3D11.Buffer particleBufferA;
         static SlimDX.Direct3D11.Buffer particleBufferB;
         static ShaderResourceView particleBufferSRVA;
+        static ShaderResourceView particleBufferSRVB;
+        static UnorderedAccessView particleBufferUAVA;
+        static UnorderedAccessView particleBufferUAVB;
 
         static bool leftDown = false;
         
@@ -64,10 +67,43 @@ namespace Micro_Architecture
         /// </summary>
         static void SimMain()
         {
+            UpdateSimulationState();
             OutputSimulationResults();
-            DrawRenderTextureToScreen(); 
+            DrawRenderTextureToScreen();
+            SwapBuffers();
 
             swapChain.Present(0, PresentFlags.None);
+
+            //System.Threading.Thread.Sleep(10);
+        }
+
+        // Do the calculations for the current timestep,
+        // update positions and forces of particles
+        private static void UpdateSimulationState()
+        {
+            device.ImmediateContext.ComputeShader.Set(updateParticlePositionsCS);
+            device.ImmediateContext.ComputeShader.SetUnorderedAccessView(particleBufferUAVA, 0);
+            device.ImmediateContext.ComputeShader.SetShaderResource(particleBufferSRVB, 1);
+
+            device.ImmediateContext.Dispatch(NumBoxesTotal, 1, 1);
+
+            device.ImmediateContext.ComputeShader.SetUnorderedAccessView(null, 0);
+            device.ImmediateContext.ComputeShader.SetShaderResource(null, 1);
+        }
+
+        /// <summary>
+        /// We now need to swap the buffers so that the input to the
+        /// next timestep is the output from the last one
+        /// </summary>
+        private static void SwapBuffers()
+        {
+            var tempSRV = particleBufferSRVA;
+            particleBufferSRVA = particleBufferSRVB;
+            particleBufferSRVB = tempSRV;
+
+            var tempUAV = particleBufferUAVA;
+            particleBufferUAVA = particleBufferUAVB;
+            particleBufferUAVB = tempUAV;
         }
 
         /// <summary>
@@ -97,7 +133,8 @@ namespace Micro_Architecture
         {
             device.ImmediateContext.ComputeShader.Set(particlePointOutputCS);
             device.ImmediateContext.ComputeShader.SetUnorderedAccessView(renderUAV, 0);
-            device.ImmediateContext.ComputeShader.SetShaderResource(particleBufferSRVA, 1);
+            device.ImmediateContext.ComputeShader.SetShaderResource(particleBufferSRVB, 1);
+            device.ImmediateContext.ClearUnorderedAccessView(renderUAV, new[] { 0.0f, 0.0f, 0.0f, 0.0f });
 
             device.ImmediateContext.Dispatch(NumBoxesTotal, 1, 1);
 
@@ -134,8 +171,8 @@ namespace Micro_Architecture
             effect = new Effect(device, bytecode);
             var csBytecode = ShaderBytecode.CompileFromFile("SimulationComputeShaders.hlsl", "OutputParticlePoints", "cs_5_0", ShaderFlags.None, EffectFlags.None);
             particlePointOutputCS = new ComputeShader(device, csBytecode);
-            var inputBytecode = ShaderBytecode.CompileFromFile("VoltagePropogator.hlsl", "UpdateInputPins", "cs_5_0", ShaderFlags.None, EffectFlags.None);
-            voltageInputCS = new ComputeShader(device, inputBytecode);
+            var inputBytecode = ShaderBytecode.CompileFromFile("SimulationComputeShaders.hlsl", "UpdateParticelPositions", "cs_5_0", ShaderFlags.None, EffectFlags.None);
+            updateParticlePositionsCS = new ComputeShader(device, inputBytecode);
             technique = effect.GetTechniqueByIndex(0);
             pass = technique.GetPassByIndex(0);
 
@@ -214,7 +251,7 @@ namespace Micro_Architecture
             const int bufferSize = particleBoxSizeInBytes * numBoxes;
 
             // Create a stream and fill it with data
-            var stream = new DataStream(bufferSize, true, true);
+            var streamB = new DataStream(bufferSize, true, true);
             var rand = new Random();
 
             for (int boxId = 0; boxId < numBoxes; boxId++)
@@ -224,13 +261,13 @@ namespace Micro_Architecture
                     const int numDimensions = 3;
                     for (int dim = 0; dim < numDimensions; dim++)
                     {
-                        stream.Write(rand.Next(0, 1280));
+                        streamB.Write(rand.Next(0, 1280));
                     }
                 }
             }
             // Have to reset the stream or buffer creation will try to read from
             // the end
-            stream.Position = 0;
+            streamB.Position = 0;
             
             // Create the buffer and fill it with data
             BufferDescription desc = new BufferDescription()
@@ -243,8 +280,16 @@ namespace Micro_Architecture
                 Usage = ResourceUsage.Default
             };
 
-            particleBufferA = new SlimDX.Direct3D11.Buffer(device, stream, desc);
+
+            var streamA = new DataStream(bufferSize, true, true);
+
+            particleBufferA = new SlimDX.Direct3D11.Buffer(device, streamA, desc);
             particleBufferSRVA = new ShaderResourceView(device, particleBufferA);
+            particleBufferUAVA = new UnorderedAccessView(device, particleBufferA);
+
+            particleBufferB = new SlimDX.Direct3D11.Buffer(device, streamB, desc);
+            particleBufferSRVB = new ShaderResourceView(device, particleBufferB);
+            particleBufferUAVB = new UnorderedAccessView(device, particleBufferB);
         }
 
         /// <summary>
