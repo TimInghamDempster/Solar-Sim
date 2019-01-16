@@ -36,6 +36,7 @@ namespace Micro_Architecture
         static ShaderResourceView particleBufferSRVB;
         static UnorderedAccessView particleBufferUAVA;
         static UnorderedAccessView particleBufferUAVB;
+        static SlimDX.Direct3D11.Buffer physicsConstantBuffer;
 
         static bool leftDown = false;
         
@@ -74,7 +75,7 @@ namespace Micro_Architecture
 
             swapChain.Present(0, PresentFlags.None);
 
-            //System.Threading.Thread.Sleep(10);
+            //System.Threading.Thread.Sleep(30);
         }
 
         // Do the calculations for the current timestep,
@@ -84,6 +85,8 @@ namespace Micro_Architecture
             device.ImmediateContext.ComputeShader.Set(updateParticlePositionsCS);
             device.ImmediateContext.ComputeShader.SetUnorderedAccessView(particleBufferUAVA, 0);
             device.ImmediateContext.ComputeShader.SetShaderResource(particleBufferSRVB, 1);
+
+            device.ImmediateContext.ComputeShader.SetConstantBuffer(physicsConstantBuffer, 0);
 
             device.ImmediateContext.Dispatch(NumBoxesTotal, 1, 1);
 
@@ -144,7 +147,7 @@ namespace Micro_Architecture
 
         static SlimDX.Windows.RenderForm InitD3D()
         {
-            var form = new RenderForm("Micro Architecture");
+            var form = new RenderForm("Solar simulation");
 
             form.Width = 1920;
             form.Height = 1080;
@@ -202,6 +205,8 @@ namespace Micro_Architecture
             /*bytecode.Dispose();
             effect.Dispose();
             backBuffer.Dispose();*/
+            
+            CreatePhysicsConstantBuffer();
 
             return form;
         }
@@ -212,7 +217,26 @@ namespace Micro_Architecture
             SlimDX.RawInput.Device.MouseInput += new System.EventHandler<SlimDX.RawInput.MouseInputEventArgs>(Device_MouseInput);
         }
 
+        static void CreatePhysicsConstantBuffer()
+        {
+            var physicsBufferSizeInBytes = 16;
+            var desc = new BufferDescription()
+            {
+                BindFlags = BindFlags.ConstantBuffer,
+                CpuAccessFlags = CpuAccessFlags.None,
+                OptionFlags = ResourceOptionFlags.None,
+                SizeInBytes = physicsBufferSizeInBytes,
+                StructureByteStride = 0,
+                Usage = ResourceUsage.Default
+            };
 
+            var data = new DataStream(physicsBufferSizeInBytes, true, true);
+            data.Write(MathsAndPhysics.TimestepInYears);
+
+            data.Position = 0;
+
+            physicsConstantBuffer = new SlimDX.Direct3D11.Buffer(device, data, desc);
+        }
 
         static void Device_MouseInput(object sender, SlimDX.RawInput.MouseInputEventArgs e)
         {
@@ -243,26 +267,44 @@ namespace Micro_Architecture
         /// </summary>
         static void InitParticleBuffer()
         {
+            var rand = MathsAndPhysics.Random;
             // Size calculations
             const int int3Size = 3 * sizeof(Int32);
             const int particlesPerBox = 8;
-            const int particleBoxSizeInBytes = int3Size * particlesPerBox;
+            const int particleBoxSizeInBytes = int3Size * 2 * particlesPerBox;
             const int numBoxes = NumBoxesPerAxis * NumBoxesPerAxis * NumBoxesPerAxis;
             const int bufferSize = particleBoxSizeInBytes * numBoxes;
 
             // Create a stream and fill it with data
             var streamB = new DataStream(bufferSize, true, true);
-            var rand = new Random();
+
+            MathsAndPhysics.AxisOfRotation = MathsAndPhysics.GenerateRandomVec3();
+            MathsAndPhysics.AxisOfRotation.Normalize();
 
             for (int boxId = 0; boxId < numBoxes; boxId++)
             {
+                List<Vector3> positionsInBox = new List<Vector3>();
+                List<Vector3> velocitiesInBox = new List<Vector3>();
                 for (int particleId = 0; particleId < particlesPerBox; particleId++)
                 {
-                    const int numDimensions = 3;
-                    for (int dim = 0; dim < numDimensions; dim++)
-                    {
-                        streamB.Write(rand.Next(0, 1280));
-                    }
+                    var pos = MathsAndPhysics.GenerateRandomVec3();
+                    pos *= MathsAndPhysics.DenseCoreSizeMilliPC / 2.0f;
+                    positionsInBox.Add(pos);
+
+                    var direction = Vector3.Cross(pos, MathsAndPhysics.AxisOfRotation);
+                    direction.Normalize();
+                    float speed = 2.0f * (float)Math.PI * MathsAndPhysics.DenseCoreSizeMilliPC * MathsAndPhysics.AngularSpeedMicroRadsPerYear / 1000.0f;
+                    var velocityMilliPCPerYear = direction * speed;
+                    velocitiesInBox.Add(velocityMilliPCPerYear);
+                }
+
+                foreach(var pos in positionsInBox)
+                {
+                    streamB.Write(pos);
+                }
+                foreach(var vel in velocitiesInBox)
+                {
+                    streamB.Write(vel);
                 }
             }
             // Have to reset the stream or buffer creation will try to read from
