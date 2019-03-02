@@ -75,7 +75,7 @@ namespace Micro_Architecture
 
             swapChain.Present(0, PresentFlags.None);
 
-            //System.Threading.Thread.Sleep(30);
+            //System.Threading.Thread.Sleep(300);
         }
 
         // Do the calculations for the current timestep,
@@ -206,7 +206,7 @@ namespace Micro_Architecture
             effect.Dispose();
             backBuffer.Dispose();*/
             
-            CreatePhysicsConstantBuffer();
+            InitPhysicsConstantBuffer();
 
             return form;
         }
@@ -217,7 +217,7 @@ namespace Micro_Architecture
             SlimDX.RawInput.Device.MouseInput += new System.EventHandler<SlimDX.RawInput.MouseInputEventArgs>(Device_MouseInput);
         }
 
-        static void CreatePhysicsConstantBuffer()
+        static void InitPhysicsConstantBuffer()
         {
             var physicsBufferSizeInBytes = 16;
             var desc = new BufferDescription()
@@ -232,6 +232,7 @@ namespace Micro_Architecture
 
             var data = new DataStream(physicsBufferSizeInBytes, true, true);
             data.Write(MathsAndPhysics.TimestepInYears);
+            data.Write(MathsAndPhysics.DenseCoreSizeMilliPC / 2.0f);
 
             data.Position = 0;
 
@@ -269,11 +270,11 @@ namespace Micro_Architecture
         {
             var rand = MathsAndPhysics.Random;
             // Size calculations
-            const int int3Size = 3 * sizeof(Int32);
+            const int particleSize = 3 * sizeof(float) *  2; // float3 position + float3 velocity
             const int particlesPerBox = 8;
-            const int particleBoxSizeInBytes = int3Size * 2 * particlesPerBox;
             const int numBoxes = NumBoxesPerAxis * NumBoxesPerAxis * NumBoxesPerAxis;
-            const int bufferSize = particleBoxSizeInBytes * numBoxes;
+            const int numParticles = numBoxes * particlesPerBox;
+            const int bufferSize = numParticles* particleSize;
 
             // Create a stream and fill it with data
             var streamB = new DataStream(bufferSize, true, true);
@@ -281,31 +282,23 @@ namespace Micro_Architecture
             MathsAndPhysics.AxisOfRotation = MathsAndPhysics.GenerateRandomVec3();
             MathsAndPhysics.AxisOfRotation.Normalize();
 
-            for (int boxId = 0; boxId < numBoxes; boxId++)
+            for (int particleId = 0; particleId < numParticles; particleId++)
             {
-                List<Vector3> positionsInBox = new List<Vector3>();
-                List<Vector3> velocitiesInBox = new List<Vector3>();
-                for (int particleId = 0; particleId < particlesPerBox; particleId++)
-                {
-                    var pos = MathsAndPhysics.GenerateRandomVec3();
-                    pos *= MathsAndPhysics.DenseCoreSizeMilliPC / 2.0f;
-                    positionsInBox.Add(pos);
+                var pos = MathsAndPhysics.GenerateRandomVec3();
+                pos *= MathsAndPhysics.DenseCoreSizeMilliPC / 2.0f;
+                pos.X *= 10;
+                pos.Y += pos.X / 2;
+                pos /= 10.0f; // small box for testing
+                pos.X -= MathsAndPhysics.DenseCoreSizeMilliPC / 3.0f;
+                streamB.Write(pos);
 
-                    var direction = Vector3.Cross(pos, MathsAndPhysics.AxisOfRotation);
-                    direction.Normalize();
-                    float speed = 2.0f * (float)Math.PI * MathsAndPhysics.DenseCoreSizeMilliPC * MathsAndPhysics.AngularSpeedMicroRadsPerYear / 1000.0f;
-                    var velocityMilliPCPerYear = direction * speed;
-                    velocitiesInBox.Add(velocityMilliPCPerYear);
-                }
-
-                foreach(var pos in positionsInBox)
-                {
-                    streamB.Write(pos);
-                }
-                foreach(var vel in velocitiesInBox)
-                {
-                    streamB.Write(vel);
-                }
+                var direction = Vector3.Cross(pos, MathsAndPhysics.AxisOfRotation);
+                direction.Normalize();
+                float speed = 2.0f * (float)Math.PI * MathsAndPhysics.DenseCoreSizeMilliPC * MathsAndPhysics.AngularSpeedMicroRadsPerYear / 1000000.0f;
+                var velocityMilliPCPerYear = direction * speed;
+                var velocity = Vector3.UnitX * 2 + Vector3.UnitY;
+                streamB.Write(velocity * 20);
+                //streamB.Write(velocityMilliPCPerYear);
             }
             // Have to reset the stream or buffer creation will try to read from
             // the end
@@ -318,7 +311,7 @@ namespace Micro_Architecture
                 CpuAccessFlags = CpuAccessFlags.None,
                 OptionFlags = ResourceOptionFlags.StructuredBuffer,
                 SizeInBytes = bufferSize,
-                StructureByteStride = particleBoxSizeInBytes,
+                StructureByteStride = particleSize,
                 Usage = ResourceUsage.Default
             };
 
