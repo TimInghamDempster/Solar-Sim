@@ -1,7 +1,7 @@
 float2 viewPos;
 float2 viewScale;
 
-Texture2D tx : register(t0);
+Texture2D<float4> tx : register(t0);
 SamplerState txSampler : register (s0)
 {
 	Filter = MIN_MAG_MIP_LINEAR;

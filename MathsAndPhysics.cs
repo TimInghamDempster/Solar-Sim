@@ -12,7 +12,7 @@ namespace Micro_Architecture
         public const float DenseCoreSizeMilliPC = 100.0f;
         public const float AngularSpeedMicroRadsPerYear = 3.1f;
 
-        public const float TimestepInYears = 0.01f;
+        public const float TimestepInYears = 0.0001f;
 
         public static Vector3 AxisOfRotation;
 
