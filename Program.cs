@@ -28,7 +28,7 @@ namespace Micro_Architecture
         static ShaderResourceView renderGridSRV;
         static UnorderedAccessView renderGridUAV;
         static int frameCount = 0;
-        const bool MainRenderParticles = false;
+        const bool MainRenderParticles = true;
 
         static bool leftDown = false;
         
@@ -37,14 +37,14 @@ namespace Micro_Architecture
         const int NumBoxesPerAxis = 128;
         const int NumBoxesTotal = NumBoxesPerAxis * NumBoxesPerAxis * NumBoxesPerAxis;
 
-        static ISimulation _simulation = new GridPressureFluid();
+        static ISimulation _simulation = new SPHFluidSim();
 
         static void Main(string[] args)
         {
             var form = InitD3D();
             InitRAWInput();
             InitRenderTextureAndVB();
-            _simulation.Init(device, renderGridUAV);
+            _simulation.Init(device, renderParticalUAV, 1280, 720);
            
             MessagePump.Run(form, SimMain);
             

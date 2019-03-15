@@ -168,7 +168,7 @@ namespace Micro_Architecture
             return computeShader;
         }
 
-        public void Init(SlimDX.Direct3D11.Device device, UnorderedAccessView outputUAV)
+        public void Init(SlimDX.Direct3D11.Device device, UnorderedAccessView outputUAV, int renderWidth, int renderHeight)
         {
             _device = device;
             _renderGridUAV = outputUAV;
