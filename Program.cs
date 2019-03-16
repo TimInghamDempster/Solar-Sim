@@ -44,7 +44,7 @@ namespace Micro_Architecture
             var form = InitD3D();
             InitRAWInput();
             InitRenderTextureAndVB();
-            _simulation.Init(device, renderParticalUAV, 1280, 720);
+            _simulation.Init(device, renderParticalUAV, 720, 720);
            
             MessagePump.Run(form, SimMain);
             
@@ -113,7 +113,7 @@ namespace Micro_Architecture
         {
             var form = new RenderForm("Solar simulation");
 
-            form.Width = 1920;
+            form.Width = 1080;
             form.Height = 1080;
 
             var desc = new SwapChainDescription()
@@ -244,7 +244,7 @@ namespace Micro_Architecture
                 CpuAccessFlags = CpuAccessFlags.None,
                 Format = Format.R8G8B8A8_UNorm,
                 Height = 720,
-                Width = 1280,
+                Width = 720,
                 MipLevels = 1,
                 OptionFlags = ResourceOptionFlags.None,
                 SampleDescription = new SampleDescription()
