@@ -59,10 +59,12 @@ namespace Micro_Architecture
             for (int particleId = 0; particleId < numParticles; particleId++)
             {
                 var pos = MathsAndPhysics.GenerateRandomVec3() / 2.0f;
+                pos += new Vector3(0.5f);
                 streamB.Write(pos);
 
-                var velocity = MathsAndPhysics.GenerateRandomVec3();
+                var velocity = MathsAndPhysics.GenerateRandomVec3() * 0.1f;
                 streamB.Write(velocity);
+                //streamB.Write(Vector3.UnitX);
 
                 streamB.Write(1.0f);
             }
@@ -92,10 +94,10 @@ namespace Micro_Architecture
             _particleBufferUAVB = new UnorderedAccessView(_device, _particleBufferB);
         }
 
-        public void SimMain()
+        public void SimMain(int frameCount)
         {
-            //OutputParticles();
             UpdateParticlePositions();
+            //OutputParticles();
             OutputPresure();
             SwapBuffers();
         }
@@ -106,7 +108,7 @@ namespace Micro_Architecture
             _device.ImmediateContext.ComputeShader.SetShaderResource(_particleBufferSRVB, 1);
             _device.ImmediateContext.ClearUnorderedAccessView(_particleBufferUAVA, new[] { 0.0f, 0.0f, 0.0f, 0.0f });
 
-            _device.ImmediateContext.Dispatch(_numBoxesPerAxis, _numBoxesPerAxis, _numBoxesPerAxis);
+            _device.ImmediateContext.Dispatch(_numBoxesPerAxis / 4, _numBoxesPerAxis / 4, _numBoxesPerAxis / 4);
 
             _device.ImmediateContext.ComputeShader.SetUnorderedAccessView(null, 0);
         }

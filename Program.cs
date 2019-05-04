@@ -62,7 +62,7 @@ namespace Micro_Architecture
         /// </summary>
         static void SimMain()
         {
-            _simulation.SimMain();
+            _simulation.SimMain(frameCount);
 
             DrawRenderTextureToScreen();
 

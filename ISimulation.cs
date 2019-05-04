@@ -19,6 +19,6 @@ namespace Micro_Architecture
         /// <summary>
         /// Perform a timestep, is called repeatedly in a loop by the program after initialisation
         /// </summary>
-        void SimMain();
+        void SimMain(int frameCount);
     }
 }
