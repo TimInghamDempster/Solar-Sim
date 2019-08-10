@@ -1,4 +1,4 @@
-﻿using System;
+﻿/*using System;
 using SlimDX.Direct3D11;
 using SlimDX.D3DCompiler;
 using SlimDX;
@@ -159,5 +159,10 @@ namespace Micro_Architecture
 
             return computeShader;
         }
+
+        public void LeftClick()
+        {
+            throw new NotImplementedException();
+        }
     }
-}
+}*/

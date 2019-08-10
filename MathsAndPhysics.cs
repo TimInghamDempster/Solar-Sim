@@ -1,4 +1,4 @@
-﻿using System;
+﻿/*using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -16,7 +16,7 @@ namespace Micro_Architecture
 
         public static Vector3 AxisOfRotation;
 
-        public static Random Random = new Random();
+        public static Random Random = new Random((int)DateTime.Now.Ticks);
 
         /// <summary>
         /// Generates a random number drawn from a normal
@@ -58,3 +58,4 @@ namespace Micro_Architecture
         }
     }
 }
+*/

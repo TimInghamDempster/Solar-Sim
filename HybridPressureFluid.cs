@@ -6,96 +6,34 @@ using System;
 
 namespace Micro_Architecture
 {
-    class GridPressureFluid : ISimulation
+    class HybridPressureFluid : ISimulation
     {
         SlimDX.Direct3D11.Device _device;
         ComputeShader _particlePointOutputCS;
-        ComputeShader _pressureOutputCS;
         ComputeShader _updateParticlePositionsCS;
-        ComputeShader _calculatePressureGradientCS;
-        ComputeShader _displacementObjectCS;
-        UnorderedAccessView _renderParticalUAV;
+        ComputeShader _fillParticleBoxesCS;
         UnorderedAccessView _renderUAV;
-        Texture3D _pressureTexture;
-        UnorderedAccessView _pressureUAV;
-        ShaderResourceView _pressureSRV;
-        Texture3D _pressureGradientTexture;
-        UnorderedAccessView _pressureGradientUAV;
-        ShaderResourceView _pressureGradientSRV;
         SlimDX.Direct3D11.Buffer _particleBufferA;
         SlimDX.Direct3D11.Buffer _particleBufferB;
         ShaderResourceView _particleBufferSRVA;
         ShaderResourceView _particleBufferSRVB;
         UnorderedAccessView _particleBufferUAVA;
         UnorderedAccessView _particleBufferUAVB;
+        SlimDX.Direct3D11.Buffer _boxes;
+        ShaderResourceView _boxesSRV;
+        UnorderedAccessView _boxesUAV;
         SlimDX.Direct3D11.Buffer _physicsConstantBuffer;
         SlimDX.Direct3D11.Buffer _displacementBuffer;
         Vector4 _displacerPosition;
         Vector4 _displacerVelocity;
         const bool _mainRenderParticles = true;
 
+        bool _holdDamn = true;
+
         // We store particles in a grid of boxes, this
         // gives us a global way to control it
         const int _numBoxesPerAxis = 64;
         const int _numBoxesTotal = _numBoxesPerAxis * _numBoxesPerAxis * _numBoxesPerAxis;
-
-        private void ApplyDisplacementObjects(int frameCount)
-        {
-            _displacerPosition += _displacerVelocity;
-
-            if (_displacerPosition.X > MathsAndPhysics.DenseCoreSizeMilliPC / 2.0f && _displacerVelocity.X > 0.0f)
-            {
-                _displacerVelocity.X *= -1.0f;
-            }
-            if (_displacerPosition.X < -MathsAndPhysics.DenseCoreSizeMilliPC / 2.0f && _displacerVelocity.X < 0.0f)
-            {
-                _displacerVelocity.X *= -1.0f;
-            }
-            if (_displacerPosition.Y > MathsAndPhysics.DenseCoreSizeMilliPC / 2.0f && _displacerVelocity.Y > 0.0f)
-            {
-                _displacerVelocity.Y *= -1.0f;
-            }
-            if (_displacerPosition.Y < -MathsAndPhysics.DenseCoreSizeMilliPC / 2.0f && _displacerVelocity.Y < 0.0f)
-            {
-                _displacerVelocity.Y *= -1.0f;
-            }
-            if (_displacerPosition.Z > MathsAndPhysics.DenseCoreSizeMilliPC / 2.0f && _displacerVelocity.Z > 0.0f)
-            {
-                _displacerVelocity.Z *= -1.0f;
-            }
-            if (_displacerPosition.Z < -MathsAndPhysics.DenseCoreSizeMilliPC / 2.0f && _displacerVelocity.Z < 0.0f)
-            {
-                _displacerVelocity.Z *= -1.0f;
-            }
-
-            if (frameCount % 100 < 0)
-            {
-                var displacementData = new DataStream(16, true, true);
-                displacementData.Write(_displacerPosition);
-
-                var dataBox = _device.ImmediateContext.MapSubresource(_displacementBuffer, 0, MapMode.WriteDiscard, SlimDX.Direct3D11.MapFlags.None);
-                dataBox.Data.Write<Vector4>(_displacerPosition);
-                _device.ImmediateContext.UnmapSubresource(_displacementBuffer, 0);
-
-                SwapBuffers();
-
-                _device.ImmediateContext.ComputeShader.Set(_displacementObjectCS);
-                _device.ImmediateContext.ComputeShader.SetUnorderedAccessViews(
-                    new UnorderedAccessView[] { _particleBufferUAVA, _pressureUAV }, 0, 2);
-                _device.ImmediateContext.ComputeShader.SetShaderResource(_particleBufferSRVB, 2);
-                _device.ImmediateContext.ComputeShader.SetShaderResource(_pressureGradientSRV, 3);
-
-                _device.ImmediateContext.ComputeShader.SetConstantBuffer(_physicsConstantBuffer, 0);
-                _device.ImmediateContext.ComputeShader.SetConstantBuffer(_displacementBuffer, 1);
-
-
-                _device.ImmediateContext.Dispatch(_numBoxesTotal, 1, 1);
-
-                _device.ImmediateContext.ComputeShader.SetUnorderedAccessView(null, 0);
-                _device.ImmediateContext.ComputeShader.SetShaderResource(null, 2);
-                _device.ImmediateContext.ComputeShader.SetUnorderedAccessView(null, 1);
-            }
-        }
 
         /// <summary>
         /// We now need to swap the buffers so that the input to the
@@ -114,7 +52,7 @@ namespace Micro_Architecture
 
         private void InitPhysicsConstantBuffer()
         {
-            var physicsBufferSizeInBytes = 64;
+            var physicsBufferSizeInBytes = 32;
             var desc = new BufferDescription()
             {
                 BindFlags = BindFlags.ConstantBuffer,
@@ -128,7 +66,11 @@ namespace Micro_Architecture
             var data = new DataStream(physicsBufferSizeInBytes, true, true);
             data.Write(MathsAndPhysics.TimestepInYears);
             data.Write(MathsAndPhysics.DenseCoreSizeMilliPC / 2.0f);
+            data.Write(MathsAndPhysics.DenseCoreSizeMilliPC / 2.0f);
+            data.Write(MathsAndPhysics.DenseCoreSizeMilliPC / 128.0f);
             data.Write(MathsAndPhysics.DenseCoreSizeMilliPC);
+            data.Write(MathsAndPhysics.DenseCoreSizeMilliPC);
+            data.Write(MathsAndPhysics.DenseCoreSizeMilliPC / 64.0f);
             data.Write((float)_numBoxesPerAxis);
 
             data.Position = 0;
@@ -165,7 +107,7 @@ namespace Micro_Architecture
 
         private ComputeShader BuildComputeShader(string shaderName)
         {
-            var csBytecode = ShaderBytecode.CompileFromFile("GridPressureFluidComputeShaders.hlsl", shaderName, "cs_5_0", ShaderFlags.None, EffectFlags.None);
+            var csBytecode = ShaderBytecode.CompileFromFile("HybridFluidComputeShaders.hlsl", shaderName, "cs_5_0", ShaderFlags.Debug | ShaderFlags.SkipOptimization, EffectFlags.None);
             var computeShader = new ComputeShader(_device, csBytecode);
 
             return computeShader;
@@ -177,32 +119,48 @@ namespace Micro_Architecture
             _renderUAV = outputUAV;
 
             InitParticleBuffer();
-            InitPressureTexture();
             InitPhysicsConstantBuffer();
 
             _particlePointOutputCS = BuildComputeShader("OutputParticlePoints");
-            _pressureOutputCS = BuildComputeShader("OutputPressures");
-            _calculatePressureGradientCS = BuildComputeShader("CalculatePressureGradients");
-            _updateParticlePositionsCS = BuildComputeShader("UpdateParticelPositions");
-            _displacementObjectCS = BuildComputeShader("ApplyDisplacementForce");
+            _updateParticlePositionsCS = BuildComputeShader("UpdateParticlePositions");
+            _fillParticleBoxesCS = BuildComputeShader("WriteParticlesToBoxes");
         }
 
         public void SimMain(int frameCount)
         {
+            WriteParticlesToBoxes();
             UpdateParticleState();
-            CalculatePressureGradients();
-            ApplyDisplacementObjects(frameCount);
 
             if (_mainRenderParticles == true)
             {
                 OutputParticlePositions();
-            }
-            else
-            {
-                OutputPressure();
+                //OutputPressurePoints();
             }
 
             SwapBuffers();
+
+            if (_holdDamn)
+            {
+                //DoMoveableBoundary();
+
+                //SwapBuffers();
+            }
+        }
+        
+
+        private void WriteParticlesToBoxes()
+        {
+            _device.ImmediateContext.ComputeShader.Set(_fillParticleBoxesCS);
+            _device.ImmediateContext.ComputeShader.SetUnorderedAccessViews(
+                new UnorderedAccessView[] { _boxesUAV }, 0, 1);
+            _device.ImmediateContext.ComputeShader.SetShaderResource(_particleBufferSRVB, 2);
+
+            _device.ImmediateContext.ComputeShader.SetConstantBuffer(_physicsConstantBuffer, 0);
+            _device.ImmediateContext.ClearUnorderedAccessView(_boxesUAV, new int[] { 0, 0, 0, 0 });
+            _device.ImmediateContext.Dispatch(_numBoxesPerAxis, 1, 1);
+
+            _device.ImmediateContext.ComputeShader.SetUnorderedAccessView(null, 0);
+            _device.ImmediateContext.ComputeShader.SetShaderResource(null, 2);
         }
 
         /// <summary>
@@ -213,10 +171,10 @@ namespace Micro_Architecture
         {
             var rand = MathsAndPhysics.Random;
             // Size calculations
-            const int particleSize = 3 * sizeof(float) * 3; // float3 position + float3 velocity + float3 colour
-            const int particlesPerBox = 16;
-            const int numBoxes = _numBoxesPerAxis * _numBoxesPerAxis * _numBoxesPerAxis;
-            const int numParticles = numBoxes * particlesPerBox;
+            const int particleSize = 3 * sizeof(float) * 3 + sizeof(float); // float3 position + float3 velocity + float3 colour + float density
+            const int particlesPerBox = 8;
+            const int numBoxes = _numBoxesPerAxis * _numBoxesPerAxis * 1;
+            const int numParticles = _numBoxesPerAxis * particlesPerBox; // numBoxes * particlesPerBox;
             const int bufferSize = numParticles * particleSize;
 
             // Create a stream and fill it with data
@@ -231,11 +189,13 @@ namespace Micro_Architecture
             {
                 var pos = MathsAndPhysics.GenerateRandomVec3();
                 var colour = Vector3.Zero;
-                colour.X = (pos.X / 2.0f) + 0.5f;
+                colour.X = 1.0f;//(pos.X / 2.0f) + 0.5f;
                 colour.Y = (pos.Y / 2.0f) + 0.5f;
                 colour.Z = 0.0f;// (pos.Z / 2.0f) + 0.5f;
-                //pos *= (MathsAndPhysics.DenseCoreSizeMilliPC / 2.0f) - ((MathsAndPhysics.DenseCoreSizeMilliPC / 2.0f) * 3.0f / (float)_numBoxesPerAxis);
-                pos *= MathsAndPhysics.DenseCoreSizeMilliPC / 6.0f;
+                pos *= MathsAndPhysics.DenseCoreSizeMilliPC / 2.0f;
+                pos.Z /= 64.0f;
+                pos.X /= 4;
+                pos.X += MathsAndPhysics.DenseCoreSizeMilliPC / 8.0f * 3.0f;
 
                 streamB.Write(pos);
 
@@ -243,10 +203,14 @@ namespace Micro_Architecture
                 direction.Normalize();
                 float speed = 2.0f * (float)Math.PI * MathsAndPhysics.DenseCoreSizeMilliPC * MathsAndPhysics.AngularSpeedMicroRadsPerYear * 1000.0f;
                 var velocityMilliPCPerYear = direction * speed;
-                var velocity = Vector3.Zero;//  Vector3.UnitX * 2 + Vector3.UnitY + (MathsAndPhysics.GenerateRandomVec3() * 0.1f);
-                streamB.Write(velocity * 50);
+                //var velocity = MathsAndPhysics.GenerateRandomVec3() * 100.0f;// Vector3.Zero;//  Vector3.UnitX * 2 + Vector3.UnitY + (MathsAndPhysics.GenerateRandomVec3() * 0.1f);
+                var velocity = (Vector3.UnitX * 2 + Vector3.UnitY + (MathsAndPhysics.GenerateRandomVec3() * 0.1f)) * 100.0f;
+                //streamB.Write(velocity * 50);
+                streamB.Write(Vector3.Zero);
 
                 streamB.Write(colour);
+
+                streamB.Write(0.0f);
 
                 streamA.Write(Vector3.Zero);
                 streamA.Write(Vector3.Zero);
@@ -259,7 +223,6 @@ namespace Micro_Architecture
             var energeticDirection = MathsAndPhysics.GenerateRandomVec3();
             energeticDirection.Z = 0.0f;
             float energeticSpeed = (MathsAndPhysics.DenseCoreSizeMilliPC / _numBoxesPerAxis) / MathsAndPhysics.TimestepInYears;
-
 
             for (int particleId = 0; particleId < numEnergeticParticles / 2; particleId++)
             {
@@ -300,32 +263,14 @@ namespace Micro_Architecture
             _particleBufferB = new SlimDX.Direct3D11.Buffer(_device, streamB, desc);
             _particleBufferSRVB = new ShaderResourceView(_device, _particleBufferB);
             _particleBufferUAVB = new UnorderedAccessView(_device, _particleBufferB);
-        }
 
-        private void InitPressureTexture()
-        {
-            Texture3DDescription pressureTexDesc = new Texture3DDescription()
-            {
-                BindFlags = BindFlags.ShaderResource | BindFlags.UnorderedAccess,
-                CpuAccessFlags = CpuAccessFlags.None,
-                Depth = _numBoxesPerAxis,
-                Format = Format.R32_UInt,
-                Height = _numBoxesPerAxis,
-                MipLevels = 1,
-                OptionFlags = ResourceOptionFlags.None,
-                Usage = ResourceUsage.Default,
-                Width = _numBoxesPerAxis
-            };
+            var boxSizeInBytes = 4 + (4 * 7 * particlesPerBox);
+            desc.SizeInBytes = boxSizeInBytes * numBoxes;
+            desc.StructureByteStride = boxSizeInBytes;
 
-            _pressureTexture = new Texture3D(_device, pressureTexDesc);
-            _pressureUAV = new UnorderedAccessView(_device, _pressureTexture);
-            _pressureSRV = new ShaderResourceView(_device, _pressureTexture);
-
-            pressureTexDesc.Format = Format.R32G32B32A32_Float;
-
-            _pressureGradientTexture = new Texture3D(_device, pressureTexDesc);
-            _pressureGradientUAV = new UnorderedAccessView(_device, _pressureGradientTexture);
-            _pressureGradientSRV = new ShaderResourceView(_device, _pressureGradientTexture);
+            _boxes = new SlimDX.Direct3D11.Buffer(_device, desc);
+            _boxesSRV = new ShaderResourceView(_device, _boxes);
+            _boxesUAV = new UnorderedAccessView(_device, _boxes);
         }
 
         // Do the calculations for the current timestep,
@@ -334,48 +279,16 @@ namespace Micro_Architecture
         {
             _device.ImmediateContext.ComputeShader.Set(_updateParticlePositionsCS);
             _device.ImmediateContext.ComputeShader.SetUnorderedAccessViews(
-                new UnorderedAccessView[] { _particleBufferUAVA, _pressureUAV }, 0, 2);
+                new UnorderedAccessView[] { _particleBufferUAVA }, 0, 1);
             _device.ImmediateContext.ComputeShader.SetShaderResource(_particleBufferSRVB, 2);
-            _device.ImmediateContext.ComputeShader.SetShaderResource(_pressureGradientSRV, 3);
+            _device.ImmediateContext.ComputeShader.SetShaderResource(_boxesSRV, 3);
 
             _device.ImmediateContext.ComputeShader.SetConstantBuffer(_physicsConstantBuffer, 0);
 
-            _device.ImmediateContext.ClearUnorderedAccessView(_pressureUAV, new int[] { 0, 0, 0, 0 });
-
-            _device.ImmediateContext.Dispatch(_numBoxesTotal, 1, 1);
+            _device.ImmediateContext.Dispatch(_numBoxesPerAxis, 1, 1);
 
             _device.ImmediateContext.ComputeShader.SetUnorderedAccessView(null, 0);
             _device.ImmediateContext.ComputeShader.SetShaderResource(null, 2);
-            _device.ImmediateContext.ComputeShader.SetUnorderedAccessView(null, 1);
-        }
-
-        private void CalculatePressureGradients()
-        {
-            _device.ImmediateContext.ComputeShader.Set(_calculatePressureGradientCS);
-            _device.ImmediateContext.ComputeShader.SetUnorderedAccessView(_pressureGradientUAV, 0);
-            _device.ImmediateContext.ComputeShader.SetShaderResource(_pressureSRV, 1);
-
-            _device.ImmediateContext.ComputeShader.SetConstantBuffer(_physicsConstantBuffer, 0);
-
-            _device.ImmediateContext.ClearUnorderedAccessView(_pressureUAV, new float[] { 0.0f, 0.0f, 0.0f, 0.0f });
-
-            _device.ImmediateContext.Dispatch(_numBoxesPerAxis / 8, _numBoxesPerAxis / 8, _numBoxesPerAxis / 8);
-
-            _device.ImmediateContext.ComputeShader.SetUnorderedAccessView(null, 0);
-            _device.ImmediateContext.ComputeShader.SetShaderResource(null, 1);
-        }
-        private void OutputPressure()
-        {
-            _device.ImmediateContext.ComputeShader.Set(_pressureOutputCS);
-            _device.ImmediateContext.ComputeShader.SetUnorderedAccessView(_renderUAV, 0);
-            _device.ImmediateContext.ComputeShader.SetShaderResource(_pressureSRV, 1);
-            _device.ImmediateContext.ComputeShader.SetShaderResource(_pressureGradientSRV, 3);
-            _device.ImmediateContext.ClearUnorderedAccessView(_renderUAV, new[] { 0.0f, 0.0f, 0.0f, 0.0f });
-
-            _device.ImmediateContext.Dispatch(_numBoxesPerAxis / 8, _numBoxesPerAxis / 8, 1);
-
-            _device.ImmediateContext.ComputeShader.SetUnorderedAccessView(null, 0);
-            _device.ImmediateContext.ComputeShader.SetShaderResource(null, 3);
         }
 
         private void OutputParticlePositions()
@@ -385,7 +298,7 @@ namespace Micro_Architecture
             _device.ImmediateContext.ComputeShader.SetShaderResource(_particleBufferSRVB, 2);
             _device.ImmediateContext.ClearUnorderedAccessView(_renderUAV, new[] { 0.0f, 0.0f, 0.0f, 0.0f });
 
-            _device.ImmediateContext.Dispatch(_numBoxesTotal, 1, 1);
+            _device.ImmediateContext.Dispatch(_numBoxesPerAxis, 1, 1);
 
             _device.ImmediateContext.ComputeShader.SetUnorderedAccessView(null, 0);
             _device.ImmediateContext.ComputeShader.SetShaderResource(null, 1);
@@ -393,7 +306,7 @@ namespace Micro_Architecture
 
         public void LeftClick()
         {
-            throw new NotImplementedException();
+            _holdDamn = false;
         }
     }
 }
