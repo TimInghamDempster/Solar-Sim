@@ -29,14 +29,14 @@ namespace SolarSim.HybridFluid
         protected override void PreviewDispatch(Device device)
         {
             base.PreviewDispatch(device);
-            device.ImmediateContext.ComputeShader.SetUnorderedAccessView(_outputUAV, 0);
+            _deviceShader.SetUnorderedAccessView(_outputUAV, 0);
         }
 
         protected override void PostDispatch(Device device)
         {
             base.PostDispatch(device);
 
-            device.ImmediateContext.ComputeShader.SetUnorderedAccessView(null, 0);
+            _deviceShader.SetUnorderedAccessView(null, 0);
         }
     }
 }

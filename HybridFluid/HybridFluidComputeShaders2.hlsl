@@ -65,23 +65,49 @@ float3 CalcRenderPos(float3 pos)
 [numthreads(8, 1, 1)]
 void TestShader(uint3 threadID : SV_DispatchThreadID)
 {
-	outputImage[threadID.xy] = float4(#red#, 0.1, 0.3, 1.0);
+	outputImage[threadID.xy] = float4(0.9, 0.1, 0.3, 1.0);
 }
 
-[numthreads(8, 1, 1)]
-void OutputParticlePoints(uint3 threadID : SV_DispatchThreadID)
+[numthreads(#OutputThreads#, 1, 1)]
+void OutputParticles(uint3 threadID : SV_DispatchThreadID)
 {
 	float3 pos = particlesIn[threadID.x].position;
 	float3 col = particlesIn[threadID.x].colour;
 
-	// Assumes cube (not cuboid) boxes
-	float boxSize = simulationSize.x / boxesPerAxis.x;
+	outputImage[pos.xy] = float4(col.x, col.y, col.z, 1.0f);
+}
 
-	//if (pos.z < boxSize / 2.0f && pos.z > -boxSize / 2.0f)
+float TryBounce(float pos, float vel)
+{
+	float upperBound = #SimulationUpperBoundary#;
+	float lowerBound = #SimulationLowerBoundary#;
+
+	if ((pos > upperBound && vel > 0.0f) || (pos < lowerBound && vel < 0.0f))
 	{
-		float3 renderPos = CalcRenderPos(pos);
-		outputImage[renderPos.xy] = float4(col.x, col.y, col.z, 1.0f);
+		return vel * -1.0f;
 	}
+	else
+	{
+		return vel;
+	}
+}
+
+[numthreads(#UpdateThreads#, 1, 1)]
+void UpdateParticles(uint3 threadID : SV_DispatchThreadID)
+{
+	float3 pos = particlesIn[threadID.x].position;
+	float3 vel = particlesIn[threadID.x].velocity;
+	float3 col = particlesIn[threadID.x].colour;
+
+	float3 newPos = pos + (vel / 100.0f);
+	float3 newVel = vel;
+
+	newVel.x = TryBounce(newPos.x, newVel.x);
+	newVel.y = TryBounce(newPos.y, newVel.y);
+	newVel.z = TryBounce(newPos.z, newVel.z);
+
+	particlesOut[threadID.x].position = newPos;
+	particlesOut[threadID.x].velocity = newVel;
 }
 
 [numthreads(8, 1, 1)]

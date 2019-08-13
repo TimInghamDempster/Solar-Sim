@@ -7,8 +7,8 @@
     <ProjectGuid>{3D2988F1-C8E4-42EB-84BD-C36346E7E255}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>Micro_Architecture</RootNamespace>
-    <AssemblyName>Micro Architecture</AssemblyName>
+    <RootNamespace>SolarSim</RootNamespace>
+    <AssemblyName>Solar Sim</AssemblyName>
     <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <TargetFrameworkProfile />
@@ -70,6 +70,9 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="HybridFluid\HybridFluidSim.cs" />
+    <Compile Include="HybridFluid\ParticleBuffers.cs" />
+    <Compile Include="HybridFluid\ParticleUpdateShader.cs" />
+    <Compile Include="HybridFluid\ParticleOutputShader.cs" />
     <Compile Include="HybridFluid\TestShader.cs" />
     <Compile Include="HybridPressureFluid.cs" />
     <Compile Include="GridPressureFluid.cs" />

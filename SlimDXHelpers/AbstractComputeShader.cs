@@ -16,7 +16,10 @@ namespace SlimDXHelpers
 
         private ComputeShader _computeShader;
 
-        private readonly Device _device;
+        protected readonly Device _device;
+
+        protected ComputeShaderWrapper _deviceShader =>
+            _device.ImmediateContext.ComputeShader;
 
         public AbstractComputeShader(string filename, string shaderName, Device device)
         {

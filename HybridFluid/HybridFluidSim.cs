@@ -1,7 +1,9 @@
-﻿using SlimDX.Direct3D11;
+﻿using SlimDX;
+using SlimDX.Direct3D11;
 using SlimDXHelpers;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using static SlimDXHelpers.ShaderFileEditor;
 
 namespace SolarSim.HybridFluid
@@ -13,19 +15,38 @@ namespace SolarSim.HybridFluid
     /// </summary>
     internal class HybridFluidSim : ISimulation
     {
-        private Device _device;
+        private readonly Device _device;
 
         /// <summary>
         /// Renders the whatever is in its UAV to the
         /// screen, used as the final output stage
         /// </summary>
-        private FSQ _finalRender;
+        private readonly FSQ _finalRender;
 
         /// <summary>
-        /// Used for testing the build process
+        /// Dumps the particles into the output buffer
         /// </summary>
-        private TestShader _testShader;
+        private readonly ParticleOutputShader _particleOutputShader;
 
+        /// <summary>
+        /// Update particle positions, simple constant velocity
+        /// update for now
+        /// </summary>
+        private readonly ParticleUpdateShader _particleUpdateShader;
+
+        /// <summary>
+        /// Stores the particle data.  Double buffered and
+        /// flip-flops between the buffers
+        /// </summary>
+        private readonly ParticleBuffers _particleBuffers;
+
+        /// <summary>
+        /// A fluid simulation using a hybrid SPH and grid
+        /// based method.  Each SPH particle is calculated
+        /// against a fixed number of other particles, with
+        /// the results scaled to account for the particles
+        /// which are not tested against
+        /// </summary>
         public HybridFluidSim(FSQ finalRender, Device device)
         {
             _finalRender = finalRender ??
@@ -37,27 +58,49 @@ namespace SolarSim.HybridFluid
             var generatedFilename =
                 GenerateTempFile(
                     "HybridFluid/HybridFluidComputeShaders2.hlsl",
-                    new List<MarkupTag>
-                    {
-                        new MarkupTag("red", "0.1")                        
-                    });
+                    ParticleOutputShader.MarkupList.
+                    Concat(ParticleUpdateShader.MarkupList));
 
-            _testShader =
-                new TestShader(
-                    generatedFilename,
-                    "TestShader",
+            const float fieldHalfSize = 500.0f;
+            const int particleCount = 10000;
+
+            _particleBuffers =
+                new ParticleBuffers(
                     _device,
-                    _finalRender.UAV);
+                    new Vector3(fieldHalfSize, fieldHalfSize, fieldHalfSize),
+                    new Vector3(fieldHalfSize, fieldHalfSize, fieldHalfSize),
+                    particleCount);
+
+            _particleUpdateShader =
+                new ParticleUpdateShader(
+                    generatedFilename,
+                    _device,
+                    _particleBuffers,
+                    particleCount);
+
+            _particleOutputShader = 
+                new ParticleOutputShader(
+                    generatedFilename,
+                    _device,
+                    _particleBuffers.ReadBuffer,
+                    _finalRender.UAV,
+                    particleCount);
         }
 
         public void Dispose()
         {
-            _testShader.Dispose();
+            _particleOutputShader.Dispose();
+            _particleUpdateShader.Dispose();
+            _particleBuffers.Dispose();
         }
 
         public void SimMain(int frameCount)
         {
-            _testShader.Dispatch();
+            _particleUpdateShader.Dispatch();
+
+            _particleOutputShader.Dispatch();
+
+            _particleBuffers.Tick();
         }
     }
 }

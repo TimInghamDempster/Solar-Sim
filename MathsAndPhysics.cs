@@ -1,11 +1,7 @@
-﻿/*using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System;
 using SlimDX;
 
-namespace Micro_Architecture
+namespace SolarSim
 {
     static class MathsAndPhysics
     {
@@ -58,4 +54,3 @@ namespace Micro_Architecture
         }
     }
 }
-*/
