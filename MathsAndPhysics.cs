@@ -10,9 +10,7 @@ namespace SolarSim
 
         public const float TimestepInYears = 0.0001f;
 
-        public static Vector3 AxisOfRotation;
-
-        public static Random Random = new Random((int)DateTime.Now.Ticks);
+        public static Random Random = new Random(10000);
 
         /// <summary>
         /// Generates a random number drawn from a normal

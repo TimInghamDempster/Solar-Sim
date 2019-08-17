@@ -6,6 +6,19 @@ namespace SolarSim.HybridFluid
 {
     public class ParticleBuffers : System.IDisposable
     {
+        struct Particle
+        {
+            public Vector3 Position;
+            public Vector3 Velocity;
+            public float Density;
+
+            public const int Size = (3 + 3 + 1) * sizeof(float);
+            public const string ShaderDefinition =
+                "float3 position;\n"  +
+                "\tfloat3 velocity;\n" +
+                "\tfloat density;";
+        }
+
         private readonly Device _device;
 
         private readonly FlipFlop<ShaderResourceView> _readBuffer;
@@ -22,9 +35,8 @@ namespace SolarSim.HybridFluid
         public IContext<ShaderResourceView> ReadBuffer => _readBuffer;
         public IContext<UnorderedAccessView> WriteBuffer => _writeBuffer;
 
-        public int ParticleSize =>
-            3 * sizeof(float) * 3 + sizeof(float); // float3 position + float3 velocity + float3 colour + float density
-
+        public const string ShaderDefinition = Particle.ShaderDefinition;
+        
         /// <summary>
         /// Maintains the data buffers for the particles.  The
         /// particles are double buffered and the views onto the
@@ -60,7 +72,7 @@ namespace SolarSim.HybridFluid
             int numParticles)
         {
             // Size calculations
-            int bufferSize = numParticles * ParticleSize;
+            int bufferSize = numParticles * Particle.Size;
 
             // Create a stream and fill it with data
             var streamB = new DataStream(bufferSize, true, true);
@@ -68,26 +80,15 @@ namespace SolarSim.HybridFluid
 
             for (int particleId = 0; particleId < numParticles; particleId++)
             {
-                var pos = MathsAndPhysics.GenerateRandomVec3();
-                var colour = Vector3.Zero;
-                var vel = MathsAndPhysics.GenerateRandomVec3();
-                colour.X = 1.0f;//(pos.X / 2.0f) + 0.5f;
-                //colour.Y = (pos.Y / 2.0f) + 0.5f;
-                //colour.Z = (pos.Z / 2.0f) + 0.5f;
-                pos.X *= scale.X;
-                pos.Y *= scale.Y;
-                pos.Z *= scale.Z;
-                pos += offset;
+                var particle = new Particle()
+                {
+                    Position = MathsAndPhysics.GenerateRandomVec3().ComponentMultiply(scale) + offset,
+                    Velocity = Vector3.Zero,// MathsAndPhysics.GenerateRandomVec3(),
+                    Density = 0.0f
+                };
 
-                streamB.Write(pos);
-                streamB.Write(vel);
-                streamB.Write(colour);
-                streamB.Write(0.0f);
-
-                streamA.Write(pos);
-                streamA.Write(vel);
-                streamA.Write(colour);
-                streamA.Write(0.0f);
+                streamA.Write(particle);
+                streamB.Write(particle);
             }
 
             streamB.Position = 0;
@@ -100,7 +101,7 @@ namespace SolarSim.HybridFluid
                 CpuAccessFlags = CpuAccessFlags.None,
                 OptionFlags = ResourceOptionFlags.StructuredBuffer,
                 SizeInBytes = bufferSize,
-                StructureByteStride = ParticleSize,
+                StructureByteStride = Particle.Size,
                 Usage = ResourceUsage.Default
             };
 

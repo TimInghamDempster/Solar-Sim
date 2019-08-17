@@ -2,10 +2,7 @@ RWTexture2D<float4> outputImage : register(t0);
 
 struct Particle
 {
-	float3 position;
-	float3 velocity;
-	float3 colour;
-	float density;
+	#ParticleDefinition#
 };
 
 struct ParticleBox
@@ -72,9 +69,8 @@ void TestShader(uint3 threadID : SV_DispatchThreadID)
 void OutputParticles(uint3 threadID : SV_DispatchThreadID)
 {
 	float3 pos = particlesIn[threadID.x].position;
-	float3 col = particlesIn[threadID.x].colour;
 
-	outputImage[pos.xy] = float4(col.x, col.y, col.z, 1.0f);
+	outputImage[pos.xy] = float4(1.0f, 0.0f, 0.0f, 1.0f);
 }
 
 float TryBounce(float pos, float vel)
@@ -97,7 +93,6 @@ void UpdateParticles(uint3 threadID : SV_DispatchThreadID)
 {
 	float3 pos = particlesIn[threadID.x].position;
 	float3 vel = particlesIn[threadID.x].velocity;
-	float3 col = particlesIn[threadID.x].colour;
 
 	float3 newPos = pos + (vel / 100.0f);
 	float3 newVel = vel;

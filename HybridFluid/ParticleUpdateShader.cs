@@ -16,6 +16,7 @@ namespace SolarSim.HybridFluid
                 new MarkupTag("UpdateThreads", threadGroupSize.ToString()),
                 new MarkupTag("SimulationUpperBoundary", "1000.0f"),
                 new MarkupTag("SimulationLowerBoundary", "0.0f"),
+                new MarkupTag("ParticleDefinition", ParticleBuffers.ShaderDefinition)
             };
 
         const int threadGroupSize = 8;

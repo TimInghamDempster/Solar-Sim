@@ -67,7 +67,9 @@ namespace SolarSim.HybridFluid
             _particleBuffers =
                 new ParticleBuffers(
                     _device,
-                    new Vector3(fieldHalfSize, fieldHalfSize, fieldHalfSize),
+                    //new Vector3(fieldHalfSize / 3.0f, fieldHalfSize, 0.0f),
+                    //new Vector3(fieldHalfSize * 1.6f, fieldHalfSize, fieldHalfSize),
+                    new Vector3(fieldHalfSize, fieldHalfSize, 0.0f),
                     new Vector3(fieldHalfSize, fieldHalfSize, fieldHalfSize),
                     particleCount);
 
