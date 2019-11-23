@@ -17,12 +17,12 @@ namespace SlimDXHelpers
             public string Name { get; }
             public string Value { get; }
 
-            public MarkupTag(string name, string value)
+            public MarkupTag(string name, object value)
             {
                 Name = name ??
                     throw new ArgumentNullException(nameof(name));
 
-                Value = value ??
+                Value = value.ToString() ??
                     throw new ArgumentNullException(nameof(value));
             }
         }

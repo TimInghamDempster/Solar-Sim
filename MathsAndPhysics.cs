@@ -5,12 +5,12 @@ namespace SolarSim
 {
     static class MathsAndPhysics
     {
-        public const float DenseCoreSizeMilliPC = 100.0f;
-        public const float AngularSpeedMicroRadsPerYear = 3.1f;
+        public static float DenseCoreSizeMilliPC => 100.0f;
+        public static float AngularSpeedMicroRadsPerYear => 3.1f;
 
-        public const float TimestepInYears = 0.0001f;
+        public static float TimestepInYears => 0.0001f;
 
-        public static Random Random = new Random(10000);
+        public static Random Random { get; } = new Random(10000);
 
         /// <summary>
         /// Generates a random number drawn from a normal

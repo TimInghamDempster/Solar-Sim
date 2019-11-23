@@ -5,12 +5,9 @@ struct Particle
 	#ParticleDefinition#
 };
 
-struct ParticleBox
+struct SubSpaceBox
 {
-	int count;
-	float3 positions[8];
-	float densities[8];
-	float3 velocities[8];
+	#SubspaceDefinition#
 };
 
 SamplerState pressureSampler : register (s0)
@@ -20,11 +17,11 @@ SamplerState pressureSampler : register (s0)
 	AddressV = CLAMP;
 };
 
-StructuredBuffer<Particle> particlesIn : register(t2);
-RWStructuredBuffer<Particle> particlesOut : register(t0);
+StructuredBuffer<Particle> particlesIn : register(t#ParticleReadSlot#);
+RWStructuredBuffer<Particle> particlesOut : register(t#ParticleWriteSlot#);
 
-StructuredBuffer<ParticleBox> particleBoxesIn : register(t3);
-RWStructuredBuffer<ParticleBox> particlesBoxesOut : register(t1);
+StructuredBuffer<SubSpaceBox> SubSpaceBoxesIn : register(t#SubspaceWriteSlot#);
+RWStructuredBuffer<SubSpaceBox> SubSpaceBoxesOut : register(t1);
 
 cbuffer physicsConstants : register(c0)
 {
@@ -36,7 +33,7 @@ cbuffer physicsConstants : register(c0)
 
 static const float PI = 3.14159265f;
 static const float viscosity = 0.01f;
-static const int particlesPerBox = 8;
+static const int particlesPerBox = #ParticlesPerBox#;
 static const int3 boxesPerAxis = int3(64, 64, 1);
 
 int CalcBoxIndex(uint3 boxId)
@@ -111,9 +108,9 @@ void OutputPressurePoints(uint3 groupId : SV_GroupID, uint3 threadId : SV_GroupT
 	int3 boxPos = groupId;
 	boxPos.z += 31;
 	int boxId = CalcBoxIndex(boxPos);
-	int countInBox = particleBoxesIn[boxId].count;
+	int countInBox = SubSpaceBoxesIn[boxId].count;
 
-	float3 pos = particleBoxesIn[boxId].positions[threadId.x];
+	float3 pos = SubSpaceBoxesIn[boxId].positions[threadId.x];
 
 	if (threadId.x < countInBox)
 	{
@@ -129,21 +126,21 @@ int3 WorldPosToBoxPos(float3 worldPos)
 	return ((worldPos + simulationHalfSize) / simulationSize) * boxesPerAxis;
 }
 
-[numthreads(8, 1, 1)]
-void WriteParticlesToBoxes(uint3 threadID : SV_DispatchThreadID)
+[numthreads(#SubspaceParticleThreads#, 1, 1)]
+void WriteParticlesToSubspace(uint3 threadID : SV_DispatchThreadID)
 {
 	float3 worldPos = particlesIn[threadID.x].position;
 	int3 boxPos = WorldPosToBoxPos(worldPos);
 	int boxId = CalcBoxIndex(boxPos);
 
 	int storageIndex = 0;
-	InterlockedAdd(particlesBoxesOut[boxId].count, 1, storageIndex);
+	InterlockedAdd(SubSpaceBoxesOut[boxId].count, 1, storageIndex);
 	
 	if (storageIndex < particlesPerBox)
 	{
-		particlesBoxesOut[boxId].positions[storageIndex] = worldPos;
-		particlesBoxesOut[boxId].densities[storageIndex] = particlesIn[threadID.x].density; 
-		particlesBoxesOut[boxId].velocities[storageIndex] = particlesIn[threadID.x].velocity;
+		SubSpaceBoxesOut[boxId].positions[storageIndex] = worldPos;
+		SubSpaceBoxesOut[boxId].densities[storageIndex] = particlesIn[threadID.x].density; 
+		SubSpaceBoxesOut[boxId].velocities[storageIndex] = particlesIn[threadID.x].velocity;
 	}
 }
 
@@ -215,7 +212,7 @@ void UpdateParticlePositions(uint3 threadID : SV_DispatchThreadID)
 				
 				int otherBoxId = CalcBoxIndex(otherBoxPos);
 
-				int count = particleBoxesIn[otherBoxId].count;
+				int count = SubSpaceBoxesIn[otherBoxId].count;
 
 				float amplification = 1.0f;
 
@@ -227,10 +224,10 @@ void UpdateParticlePositions(uint3 threadID : SV_DispatchThreadID)
 
 				for (int posId = 0; posId < count; posId++)
 				{
-					float3 otherPos = particleBoxesIn[otherBoxId].positions[posId];
-					float otherDensity = particleBoxesIn[otherBoxId].densities[posId];
+					float3 otherPos = SubSpaceBoxesIn[otherBoxId].positions[posId];
+					float otherDensity = SubSpaceBoxesIn[otherBoxId].densities[posId];
 					
-					aggregateVelocity += particleBoxesIn[otherBoxId].velocities[posId] * amplification;
+					aggregateVelocity += SubSpaceBoxesIn[otherBoxId].velocities[posId] * amplification;
 					aggregateCount += amplification;
 
 					float3 delta = worldPos - otherPos;

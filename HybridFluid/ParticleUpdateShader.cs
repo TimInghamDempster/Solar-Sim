@@ -8,15 +8,20 @@ namespace SolarSim.HybridFluid
 {
     internal class ParticleUpdateShader : AbstractComputeShader
     {
-        ParticleBuffers _particleBuffer;
+        private readonly ParticleBuffers _particleBuffer;
+
+        public const int ParticleWriteSlot = 0;
+        public const int ParticleReadSlot = 2;
 
         public static List<MarkupTag> MarkupList =>
             new List<MarkupTag>()
             {
-                new MarkupTag("UpdateThreads", threadGroupSize.ToString()),
+                new MarkupTag("UpdateThreads", threadGroupSize),
                 new MarkupTag("SimulationUpperBoundary", "1000.0f"),
                 new MarkupTag("SimulationLowerBoundary", "0.0f"),
-                new MarkupTag("ParticleDefinition", ParticleBuffers.ShaderDefinition)
+                new MarkupTag("ParticleDefinition", ParticleBuffers.ShaderDefinition),
+                new MarkupTag("ParticleReadSlot", ParticleReadSlot),
+                new MarkupTag("ParticleWriteSlot", ParticleWriteSlot)
             };
 
         const int threadGroupSize = 8;
@@ -47,14 +52,14 @@ namespace SolarSim.HybridFluid
         protected override void PreviewDispatch(Device device)
         {
             base.PreviewDispatch(device);
-            _deviceShader.SetUnorderedAccessView(_particleBuffer.WriteBuffer.Object, 0);
-            _deviceShader.SetShaderResource(_particleBuffer.ReadBuffer.Object, 2);
+            _deviceShader.SetUnorderedAccessView(_particleBuffer.WriteBuffer.Object, ParticleWriteSlot);
+            _deviceShader.SetShaderResource(_particleBuffer.ReadBuffer.Object, ParticleReadSlot);
         }
 
         protected override void PostDispatch(Device device)
         {
-            _deviceShader.SetUnorderedAccessView(null, 0);
-            _deviceShader.SetShaderResource(null, 2);
+            _deviceShader.SetUnorderedAccessView(null, ParticleWriteSlot);
+            _deviceShader.SetShaderResource(null, ParticleReadSlot);
             base.PostDispatch(device);
         }
     }

@@ -2,7 +2,6 @@
 using SlimDX.Direct3D11;
 using SlimDXHelpers;
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using static SlimDXHelpers.ShaderFileEditor;
 
@@ -33,12 +32,17 @@ namespace SolarSim.HybridFluid
         /// update for now
         /// </summary>
         private readonly ParticleUpdateShader _particleUpdateShader;
-
+        
         /// <summary>
         /// Stores the particle data.  Double buffered and
         /// flip-flops between the buffers
         /// </summary>
         private readonly ParticleBuffers _particleBuffers;
+
+
+        private readonly WriteParticlesToSubspaceShader _writeParticlesToSubspaceShader;
+
+        private readonly SubspaceBuffers _subspaceBuffers;
 
         /// <summary>
         /// A fluid simulation using a hybrid SPH and grid
@@ -59,7 +63,8 @@ namespace SolarSim.HybridFluid
                 GenerateTempFile(
                     "HybridFluid/HybridFluidComputeShaders2.hlsl",
                     ParticleOutputShader.MarkupList.
-                    Concat(ParticleUpdateShader.MarkupList));
+                    Concat(ParticleUpdateShader.MarkupList).
+                    Concat(WriteParticlesToSubspaceShader.MarkupList));
 
             const float fieldHalfSize = 500.0f;
             const int particleCount = 10000;
@@ -67,10 +72,10 @@ namespace SolarSim.HybridFluid
             _particleBuffers =
                 new ParticleBuffers(
                     _device,
-                    //new Vector3(fieldHalfSize / 3.0f, fieldHalfSize, 0.0f),
-                    //new Vector3(fieldHalfSize * 1.6f, fieldHalfSize, fieldHalfSize),
-                    new Vector3(fieldHalfSize, fieldHalfSize, 0.0f),
-                    new Vector3(fieldHalfSize, fieldHalfSize, fieldHalfSize),
+                    new Vector3(fieldHalfSize / 3.0f, fieldHalfSize, 0.0f),
+                    new Vector3(fieldHalfSize * 1.6f, fieldHalfSize, fieldHalfSize),
+                    //new Vector3(fieldHalfSize, fieldHalfSize, 0.0f),
+                    //new Vector3(fieldHalfSize, fieldHalfSize, fieldHalfSize),
                     particleCount);
 
             _particleUpdateShader =
@@ -87,6 +92,20 @@ namespace SolarSim.HybridFluid
                     _particleBuffers.ReadBuffer,
                     _finalRender.UAV,
                     particleCount);
+
+            _subspaceBuffers = new SubspaceBuffers(
+                _device,
+                32,
+                32,
+                32);
+
+            _writeParticlesToSubspaceShader =
+                new WriteParticlesToSubspaceShader(
+                    generatedFilename,
+                    device,
+                    _subspaceBuffers,
+                    _particleBuffers,
+                    ParticleUpdateShader.ParticleReadSlot);
         }
 
         public void Dispose()
@@ -94,6 +113,8 @@ namespace SolarSim.HybridFluid
             _particleOutputShader.Dispose();
             _particleUpdateShader.Dispose();
             _particleBuffers.Dispose();
+            _subspaceBuffers.Dispose();
+            _writeParticlesToSubspaceShader.Dispose();
         }
 
         public void SimMain(int frameCount)
@@ -103,6 +124,8 @@ namespace SolarSim.HybridFluid
             _particleOutputShader.Dispatch();
 
             _particleBuffers.Tick();
+
+            _writeParticlesToSubspaceShader.Dispatch();
         }
     }
 }

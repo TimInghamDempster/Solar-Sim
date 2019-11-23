@@ -3,13 +3,13 @@ using SlimDX.DXGI;
 using SlimDX.Windows;
 using SlimDXHelpers;
 using SolarSim.HybridFluid;
+using System.Threading;
 
 namespace SolarSim
 {
     class Program
     {
         static int _frameCount = 0;
-        static bool _leftDown = false;
         private static SlimDX.Direct3D11.Device _device;
         private static SwapChain _swapChain;
         private static FSQ _finalRender;
@@ -21,13 +21,14 @@ namespace SolarSim
         {
             // Setup
             var form = SlimDXHelper.InitD3D(out _device, out _swapChain, out _renderView);
-
+            var temp =  form.ClientRectangle;
             _finalRender = new FSQ(_device, _renderView, "SimpleFSQ.fx");
 
-            _simulation = 
+            /*_simulation = 
                 new HybridFluidSim(
                     _finalRender,
-                    _device);
+                    _device);*/
+            _simulation = new GridFluid.GridFluidSim(_device, _finalRender.UAV);
 
             // Main loop
             MessagePump.Run(form, SimMain);
@@ -49,6 +50,7 @@ namespace SolarSim
 
             _swapChain.Present(0, PresentFlags.None);
             _frameCount++;
+            Thread.Sleep(100);
         }
     }
 }

@@ -14,10 +14,10 @@ namespace SolarSim.HybridFluid
         public static List<MarkupTag> MarkupList =>
             new List<MarkupTag>()
             {
-                new MarkupTag("OutputThreads", threadGroupSize.ToString())
+                new MarkupTag("OutputThreads", ThreadGroupSize)
             };
 
-        const int threadGroupSize = 8;
+        public const int ThreadGroupSize = 8;
 
         /// <summary>
         /// A shader which takes the current read particle buffer and
@@ -40,7 +40,7 @@ namespace SolarSim.HybridFluid
             _outputBuffer = outputBuffer ??
                 throw new ArgumentNullException(nameof(outputBuffer));
 
-            _threadGroupsX = particleCount / threadGroupSize;
+            _threadGroupsX = particleCount / ThreadGroupSize;
             _threadGroupsY = 1;
             _threadGroupsZ = 1;
         }

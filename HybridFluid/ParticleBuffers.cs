@@ -19,8 +19,6 @@ namespace SolarSim.HybridFluid
                 "\tfloat density;";
         }
 
-        private readonly Device _device;
-
         private readonly FlipFlop<ShaderResourceView> _readBuffer;
         private readonly FlipFlop<UnorderedAccessView> _writeBuffer;
 
@@ -32,8 +30,8 @@ namespace SolarSim.HybridFluid
         private ShaderResourceView _srv2;
         private UnorderedAccessView _uav2;
 
-        public IContext<ShaderResourceView> ReadBuffer => _readBuffer;
-        public IContext<UnorderedAccessView> WriteBuffer => _writeBuffer;
+        public IContext<ShaderResourceView> ReadBuffer => null; //_readBuffer;
+        public IContext<UnorderedAccessView> WriteBuffer => null; // _writeBuffer;
 
         public const string ShaderDefinition = Particle.ShaderDefinition;
         
@@ -51,9 +49,7 @@ namespace SolarSim.HybridFluid
             Vector3 offset,
             int numParticles)
         {
-            _device = device;
-
-            BuildBuffers(scale, offset, numParticles);
+            BuildBuffers(scale, offset, numParticles, device);
 
             _readBuffer = 
                 new FlipFlop<ShaderResourceView>(
@@ -69,7 +65,8 @@ namespace SolarSim.HybridFluid
         private void BuildBuffers(
             Vector3 scale, 
             Vector3 offset,
-            int numParticles)
+            int numParticles,
+            Device device)
         {
             // Size calculations
             int bufferSize = numParticles * Particle.Size;
@@ -83,9 +80,11 @@ namespace SolarSim.HybridFluid
                 var particle = new Particle()
                 {
                     Position = MathsAndPhysics.GenerateRandomVec3().ComponentMultiply(scale) + offset,
-                    Velocity = Vector3.Zero,// MathsAndPhysics.GenerateRandomVec3(),
+                    Velocity = MathsAndPhysics.GenerateRandomVec3(),
                     Density = 0.0f
                 };
+
+                particle.Velocity.Z = 0.0f;
 
                 streamA.Write(particle);
                 streamB.Write(particle);
@@ -105,13 +104,13 @@ namespace SolarSim.HybridFluid
                 Usage = ResourceUsage.Default
             };
 
-            _data1 = new Buffer(_device, streamA, desc);
-            _srv1 = new ShaderResourceView(_device, _data1);
-            _uav1 = new UnorderedAccessView(_device, _data1);
+            _data1 = new Buffer(device, streamA, desc);
+            _srv1 = new ShaderResourceView(device, _data1);
+            _uav1 = new UnorderedAccessView(device, _data1);
 
-            _data2 = new Buffer(_device, streamB, desc);
-            _srv2= new ShaderResourceView(_device, _data2);
-            _uav2 = new UnorderedAccessView(_device, _data2);
+            _data2 = new Buffer(device, streamB, desc);
+            _srv2= new ShaderResourceView(device, _data2);
+            _uav2 = new UnorderedAccessView(device, _data2);
         }
 
         public void Tick()

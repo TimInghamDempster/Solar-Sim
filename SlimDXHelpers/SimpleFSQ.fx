@@ -35,7 +35,7 @@ PS_IN VS(VS_IN input)
 
 float4 PS(PS_IN input) : SV_Target
 {
-	return tx.Sample(txSampler, input.txPos.xy);
+	return tx.Sample(txSampler, input.txPos.xy / 50.0);
 }
 
 technique11 Render

@@ -1,20 +1,19 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace SlimDXHelpers
 {
-    public class FlipFlop<ContainedType> : IContext<ContainedType>
+    public class FlipFlop<ContainedType> : IDisposable
     {
         private bool _tickTock;
 
         private readonly ContainedType _object1;
         private readonly ContainedType _object2;
 
-        public ContainedType Object =>
+        public ContainedType ReadObject =>
             _tickTock ? _object1 : _object2;
+
+        public ContainedType WriteObject =>
+            _tickTock ? _object2 : _object1;
 
         /// <summary>
         /// Takes two objects and exposes one of them as a
@@ -33,6 +32,18 @@ namespace SlimDXHelpers
         public void Tick()
         {
             _tickTock = !_tickTock;
+        }
+
+        public void Dispose()
+        {
+            if(_object1 is IDisposable disposable1)
+            {
+                disposable1.Dispose();
+            }
+            if (_object2 is IDisposable disposable2)
+            {
+                disposable2.Dispose();
+            }
         }
     }
 }

@@ -69,11 +69,17 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="GridFluid\GridFluidSim.cs" />
+    <Compile Include="GridFluid\GridOutputShader.cs" />
+    <Compile Include="GridFluid\GridTextureSet.cs" />
+    <Compile Include="GridFluid\TestSetups.cs" />
     <Compile Include="HybridFluid\HybridFluidSim.cs" />
     <Compile Include="HybridFluid\ParticleBuffers.cs" />
     <Compile Include="HybridFluid\ParticleUpdateShader.cs" />
     <Compile Include="HybridFluid\ParticleOutputShader.cs" />
+    <Compile Include="HybridFluid\SubspaceBuffers.cs" />
     <Compile Include="HybridFluid\TestShader.cs" />
+    <Compile Include="HybridFluid\WriteParticlesToSubspaceShader.cs" />
     <Compile Include="HybridPressureFluid.cs" />
     <Compile Include="GridPressureFluid.cs" />
     <Compile Include="ISimulation.cs" />
@@ -86,6 +92,12 @@
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="GridFluid\GridFluid.hlsl">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="GridFluid\Ink.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="HybridFluid\HybridFluidComputeShaders2.hlsl">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
