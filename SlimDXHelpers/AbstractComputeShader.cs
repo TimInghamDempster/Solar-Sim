@@ -26,7 +26,7 @@ namespace SlimDXHelpers
             _device = device ??
                 throw new ArgumentNullException(nameof(device));
 
-            var csBytecode = ShaderBytecode.CompileFromFile(filename, shaderName, "cs_5_0", ShaderFlags.Debug | ShaderFlags.SkipOptimization, EffectFlags.None);
+            var csBytecode = ShaderBytecode.CompileFromFile(filename, shaderName, "cs_5_0", ShaderFlags.Debug | ShaderFlags.SkipOptimization |ShaderFlags.PreferFlowControl, EffectFlags.None);
             _computeShader = new ComputeShader(_device, csBytecode);
 
             csBytecode.Dispose();

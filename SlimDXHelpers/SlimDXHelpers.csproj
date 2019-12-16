@@ -21,6 +21,7 @@
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+    <UseVSHostingProcess>false</UseVSHostingProcess>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -59,7 +60,8 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="ShaderFileEditor.cs" />
     <Compile Include="SlimDXHelper.cs" />
-    <Compile Include="TextureAndViews.cs" />
+    <Compile Include="Texture3DAndViews.cs" />
+    <Compile Include="Texture2DAndViews.cs" />
     <Compile Include="VectorExtensions.cs" />
   </ItemGroup>
   <ItemGroup>

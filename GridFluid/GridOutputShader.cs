@@ -9,7 +9,7 @@ namespace SolarSim.GridFluid
     public class GridOutputShader : AbstractComputeShader
     {
         private readonly UnorderedAccessView _outputBuffer;
-        private readonly FlipFlop<TextureAndViews> _dataBuffer;
+        private readonly FlipFlop<Texture3DAndViews> _dataBuffer;
         private readonly int _gridReadSlot;
         private readonly int _gridWriteSlot;
 
@@ -28,7 +28,7 @@ namespace SolarSim.GridFluid
             Device device, 
             ItemCount<Pixel> outputResolution,
             UnorderedAccessView outputBuffer,
-            FlipFlop<TextureAndViews> dataBuffer,
+            FlipFlop<Texture3DAndViews> dataBuffer,
             int gridReadSlot,
             int gridWriteSlot) :
             base(filename, "OutputGrid", device)

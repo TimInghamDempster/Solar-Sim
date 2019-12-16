@@ -4,7 +4,7 @@ using System;
 
 namespace SlimDXHelpers
 {
-    public class TextureAndViews : IDisposable
+    public class Texture2DAndViews : IDisposable
     {
         private readonly Resource _data;
         private readonly Device _device;
@@ -17,7 +17,7 @@ namespace SlimDXHelpers
         public MemorySize RowPitch => _format.FormatElementSizeBits() * Width;
         public MemorySize ResourceSize => RowPitch * Height;
 
-        public TextureAndViews(Device device, SlimDX.DXGI.Format format, ItemCount<Pixel> width, ItemCount<Pixel> height, DataRectangle data = null)
+        public Texture2DAndViews(Device device, SlimDX.DXGI.Format format, ItemCount<Pixel> width, ItemCount<Pixel> height, DataRectangle data = null)
         {
             _device = device;
             _format = format;
@@ -58,9 +58,6 @@ namespace SlimDXHelpers
         {
             var pitch = _format.FormatElementSizeBits() * Width;
             var slicePitch = pitch * Height;
-
-            // This isn't at all robust, but will do for now
-            const int bytesPerFloat = 4;
 
             dataStream.Seek(0, System.IO.SeekOrigin.Begin);
 

@@ -4,13 +4,13 @@ namespace SolarSim.GridFluid
 {
     public class GridTextureSet
     {
-        public TextureAndViews PressureVelocity { get; }
+        public Texture2DAndViews PressureVelocity { get; }
 
-        public TextureAndViews InkColours { get; }
+        public Texture2DAndViews InkColours { get; }
 
         public GridTextureSet(
-            TextureAndViews pressureVeolcity,
-            TextureAndViews inkColours)
+            Texture2DAndViews pressureVeolcity,
+            Texture2DAndViews inkColours)
         {
             PressureVelocity = pressureVeolcity;
             InkColours = inkColours;

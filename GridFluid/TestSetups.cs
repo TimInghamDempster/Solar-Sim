@@ -5,7 +5,11 @@ namespace SolarSim.GridFluid
 {
     public static class TestSetups
     {
-        public static void CreateDispersionTest(TextureAndViews initialBuffer)
+        /// <summary>
+        /// Create initial conditions of a single fluid filled pixel surrounded
+        /// by vacuum to test dispersion simulation
+        /// </summary>
+        public static void CreateDispersionTest(Texture2DAndViews initialBuffer)
         {
             var stream = new DataStream(initialBuffer.ResourceSize.RequiredBytes, true, true);
 

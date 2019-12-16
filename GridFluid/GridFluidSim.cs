@@ -9,11 +9,12 @@ namespace SolarSim.GridFluid
     public class GridFluidSim : ISimulation
     {
         private readonly GridOutputShader _outputShader;
-        private readonly FlipFlop<TextureAndViews> _buffers;
+        private readonly GridFluidShader _transportStep;
+        private readonly FlipFlop<Texture3DAndViews> _buffers;
 
-        private const int _writeBufferSlot = 1;
+        private const int _writeBufferSlot = 0;
         private const int _readBufferSlot = 2;
-        private readonly ItemCount<Pixel> _resolution = new ItemCount<Pixel>(1024);
+        private readonly ItemCount<Pixel> _resolution = new ItemCount<Pixel>(256);
         public List<MarkupTag> MarkupList { get; }
            
 
@@ -33,14 +34,10 @@ namespace SolarSim.GridFluid
                    MarkupList.Concat(
                        GridOutputShader.MarkupList));
 
-            var pressureTextureA = new TextureAndViews(device, SlimDX.DXGI.Format.R32G32B32A32_Float, _resolution, _resolution);
-            var pressureTextureB = new TextureAndViews(device, SlimDX.DXGI.Format.R32G32B32A32_Float, _resolution, _resolution);
-            pressureTextureA.FillRandomFloats(MathsAndPhysics.Random);
-            pressureTextureB.FillRandomFloats(MathsAndPhysics.Random);
+            var pressureTextureA = new Texture3DAndViews(device, SlimDX.DXGI.Format.R32G32B32A32_Float, _resolution, _resolution, _resolution);
+            var pressureTextureB = new Texture3DAndViews(device, SlimDX.DXGI.Format.R32G32B32A32_Float, _resolution, _resolution, _resolution);
 
-            _buffers = new FlipFlop<TextureAndViews>(pressureTextureA, pressureTextureB);
-
-            TestSetups.CreateDispersionTest(pressureTextureA);
+            _buffers = new FlipFlop<Texture3DAndViews>(pressureTextureA, pressureTextureB);
 
             _outputShader =
                 new GridOutputShader(
@@ -51,17 +48,28 @@ namespace SolarSim.GridFluid
                     _buffers,
                     _readBufferSlot,
                     _writeBufferSlot);
+
+            _transportStep = 
+                new GridFluidShader(
+                    generatedFilename, 
+                    device,
+                    _buffers,
+                    _readBufferSlot,
+                    _writeBufferSlot,
+                    _resolution);
         }
 
         public void Dispose()
         {
             _outputShader.Dispose();
             _buffers.Dispose();
+            _transportStep.Dispose();
         }
 
         public void SimMain(int frameCount)
         {
             _buffers.Tick();
+            _transportStep.Dispatch();
             _outputShader.Dispatch();
         }
 

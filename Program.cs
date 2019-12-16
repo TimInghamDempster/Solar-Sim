@@ -50,7 +50,7 @@ namespace SolarSim
 
             _swapChain.Present(0, PresentFlags.None);
             _frameCount++;
-            Thread.Sleep(100);
+            //Thread.Sleep(1000);
         }
     }
 }
