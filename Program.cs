@@ -2,8 +2,6 @@
 using SlimDX.DXGI;
 using SlimDX.Windows;
 using SlimDXHelpers;
-using SolarSim.HybridFluid;
-using System.Threading;
 
 namespace SolarSim
 {
@@ -50,7 +48,7 @@ namespace SolarSim
 
             _swapChain.Present(0, PresentFlags.None);
             _frameCount++;
-            //Thread.Sleep(1000);
+            //Thread.Sleep(500);
         }
     }
 }

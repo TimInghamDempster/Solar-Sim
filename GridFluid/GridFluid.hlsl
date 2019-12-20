@@ -3,33 +3,47 @@ RWTexture2D<float4> outputImage : register(t#OutputSlot#);
 Texture3D<float4> ReadGrid : register(t#GridReadSlot#);
 RWTexture3D<float4> WriteGrid : register(t#GridWriteSlot#);
 
+Texture3D<float4> InkReadGrid : register(t#InkReadSlot#);
+RWTexture3D<float4> InkWriteGrid : register(t#InkWriteSlot#);
+
 float4 ApplyBoundaryConditions(uint3 location, float4 currentMassVel)
 {
-	
-	if (location.x == 0)
+
+	if (location.x < 2)
 	{
-		return float4(0.4f, 0.3f, 0.0f, 0.5f);
+		if (location.y % 10 == 0)
+		{
+			InkWriteGrid[location] = 0.0f;
+		}
+		else
+		{
+			InkWriteGrid[location] = 1.0f;
+		}
+		return float4(0.03f, 0.0f, 0.0f, 0.5f);
 	}
-	else if (location.x == #Resolution# - 1 ||
-			 location.y == 0 ||
-			 location.y == #Resolution#  - 1 ||
-			 location.z == 0 ||
-			 location.z == #Resolution#  - 1)
+
+	if (location.x > #Resolution#  - 2 ||
+		location.y < 2 ||
+		location.y > #Resolution#   - 2 ||
+		location.z < 2 ||
+		location.z > #Resolution#    - 2)
 	{
-		return float4(0.4f, 0.3f, 0.0f, 0.5f);
+		return float4(currentMassVel.x, currentMassVel.y, currentMassVel.z, 0.5f);
 	}
-	else
+
+	/*if (location.x == 128 && location.y == 128 && location.z == 128)
 	{
-		return currentMassVel;
-	}
+		return float4(0.0f, 0.0f, 0.0f, 0.9f);
+	}*/
+	return currentMassVel;
 }
 
 float ObstructionFlux(int3 location)
 {
-	if (location.x > 124 &&
-		location.x < 132 &&
-		location.y > 124 &&
-		location.y < 132)
+	int deltaX = location.x - 64;
+	int deltaY = location.y - 128;
+
+	if ((deltaX * deltaX) + (deltaY * deltaY) < 64)
 	{
 		return 0.0f;
 	}
@@ -41,15 +55,15 @@ float CalcFlux(float4 insideMasVel, float4 outsideMasVel, float3 fluxAxisOutward
 {
 	float3 boundaryVelocity = (insideMasVel.xyz + outsideMasVel.xyz) / 2.0f;
 
-	float fluxIn = max(dot(boundaryVelocity,-fluxAxisOutward), 0.0f) * outsideMasVel.w;
-	float fluxOut =max(dot(boundaryVelocity, fluxAxisOutward), 0.0f) * insideMasVel.w;
+	float fluxIn = max(dot(boundaryVelocity.xyz,-fluxAxisOutward), 0.0f) * outsideMasVel.w;
+	float fluxOut =max(dot(boundaryVelocity.xyz, fluxAxisOutward), 0.0f) * insideMasVel.w;
 
 	return  fluxIn - fluxOut;
 }
 
 float4 ApplyTransport(uint3 location)
 {
-	float4 masVel = ReadGrid[location];
+	float4 massVel = ReadGrid[location];
 
 	float3 dir[6] =
 	{
@@ -60,7 +74,10 @@ float4 ApplyTransport(uint3 location)
 		float3( 0.0f, 0.0f, 1.0f),
 		float3( 0.0f, 0.0f,-1.0f)
 	};
-	float totalMass = masVel.w;
+	float totalMass = massVel.w;
+
+	float oldInk = InkReadGrid[location];
+	float totalInk = oldInk;
 
 	// We need to know how much of the original mass is left
 	// to work out the new average velocity of the cell
@@ -71,33 +88,136 @@ float4 ApplyTransport(uint3 location)
 	// to work out the new average velocity
 	float3 totalCellMomentum = float3(0.0f, 0.0f, 0.0f);
 
+	float slipVel = 1.0f;
+
+	float4 shear = 0.0f;
+
+	const float viscosity = 0.0f;
+
 	for (int i = 0; i < 6; i++)
 	{
 		float4 neighbourMasVel = ReadGrid[location + dir[i]];
+		float neighbourInk = InkReadGrid[location + dir[i]];
 		
-		float flux = CalcFlux(masVel, neighbourMasVel, dir[i]) * ObstructionFlux(location) * ObstructionFlux(location + dir[i]);
+		float flux = CalcFlux(massVel, neighbourMasVel, dir[i]) * ObstructionFlux(location) * ObstructionFlux(location + dir[i]);
 
 		totalMass += flux;
 		massAfterOutflow += min(flux, 0.0f); // This variable needs to know how much mass left the cell
-		totalCellMomentum += max(flux * neighbourMasVel.xyz, 0.0f); // How much momentum came into the cell?  Can't be negative*/
+		totalCellMomentum += max(flux, 0.0f) * neighbourMasVel.xyz; // How much momentum came into the cell?  Can't be negative*/
+
+		slipVel *= ObstructionFlux(location + dir[i]);
+
+		totalInk += max(flux, 0.0f) * neighbourInk;
+		totalInk += min(flux, 0.0f) * oldInk;
+
+		float4 thisShear = neighbourMasVel;
+		thisShear.xyz *= thisShear.w;
+
+		shear += thisShear;
 	}
 
-	totalCellMomentum += masVel.xyz * massAfterOutflow;
+	massAfterOutflow = max(massAfterOutflow, 0.0f);
 
-	float4 newMassVel = totalMass;
-	newMassVel.xyz = totalCellMomentum / max(totalMass, 0.000001f);
+	totalCellMomentum += massVel.xyz * massAfterOutflow;
+
+	float4 newMassVel = 0.0f;
+	newMassVel.w = max(totalMass, 0.00001f);
+	newMassVel.xyz = (totalCellMomentum / max(totalMass, 0.00001f)) * slipVel * (1.0f - viscosity);
+	massVel.xyz += (shear.xyz / shear.w) * viscosity;
+
+	InkWriteGrid[location] = totalInk;
 
 	return newMassVel;
 }
 
+float4 ApplyPressure(uint3 location)
+{
+	float4 oldMassVel = ReadGrid[location];
+
+	float3 dir[6] =
+	{
+		float3(1.0f, 0.0f, 0.0f),
+		float3(-1.0f, 0.0f, 0.0f),
+		float3(0.0f, 1.0f, 0.0f),
+		float3(0.0f,-1.0f, 0.0f),
+		float3(0.0f, 0.0f, 1.0f),
+		float3(0.0f, 0.0f,-1.0f)
+	};
+
+	float pressureConstant = 0.0001f;
+	const float stateExponent = 5.0f;
+	const float pressureOffset = 0.0f;
+	const float meanDensity = 0.3f;
+
+	for (int i = 0; i < 6; i++)
+	{
+		float4 neighbourMassVel = ReadGrid[location + dir[i]];
+		
+		float pressure = max(pow(oldMassVel.w / meanDensity, stateExponent) - pressureOffset, 0);
+		float neighbourPressure = max(pow(neighbourMassVel.w / meanDensity, stateExponent) - pressureOffset, 0);
+		
+		float delta = pressure - neighbourPressure;
+
+		float pressureEffect = delta * pressureConstant * ObstructionFlux(location) * ObstructionFlux(location + dir[i]);
+
+		float3 effect = dir[i] * pressureEffect;
+		oldMassVel.xyz += effect;
+	}
+
+	float safeVal = 0.48f;
+	oldMassVel.x = clamp(oldMassVel.x, -safeVal, safeVal);
+	oldMassVel.y = clamp(oldMassVel.y, -safeVal, safeVal);
+	oldMassVel.z = clamp(oldMassVel.z, -safeVal, safeVal);
+
+	return oldMassVel;
+}
+
 [numthreads(#OutputThreads#, #OutputThreads#, #OutputThreads#)]
-void GridFluidMain(uint3 threadID : SV_DispatchThreadID)
+void TransportStep(uint3 threadID : SV_DispatchThreadID)
 {
 	float4 massVel = ApplyTransport(threadID);
-
-	massVel = ApplyBoundaryConditions(threadID, massVel);
-
 	WriteGrid[threadID] = massVel;
+}
+
+[numthreads(#OutputThreads#, #OutputThreads#, #OutputThreads#)]
+void PressureStep(uint3 threadID : SV_DispatchThreadID)
+{
+	float4 massVel = ApplyPressure(threadID);
+	massVel = ApplyBoundaryConditions(threadID, massVel);
+	WriteGrid[threadID] = massVel;
+}
+
+bool IsFinalMassVelError(float4 massVel)
+{
+	if (isnan(massVel.x))
+	{
+		return true;
+	}
+	if (isnan(massVel.y))
+	{
+		return true;
+	}
+	if (isnan(massVel.z))
+	{
+		return true;
+	}
+	if (isnan(massVel.w))
+	{
+		return true;
+	}
+	if (massVel.x >= 1.0f || massVel.x <= -1.0f)
+	{
+		return true;
+	}
+	if (massVel.y >= 1.0f || massVel.y <= -1.0f)
+	{
+		return true;
+	}
+	if (massVel.z >= 1.0f || massVel.z <= -1.0f)
+	{
+		return true;
+	}
+	return false;
 }
 
 [numthreads(#OutputThreads#, #OutputThreads#, 1)]
@@ -108,5 +228,23 @@ void OutputGrid(uint3 threadID : SV_DispatchThreadID)
 
 	float4 massVel = ReadGrid[sampleSite];
 
-	outputImage[threadID.xy] = massVel.w >= 0 ? massVel.w : float4(0.5f, 0.0f, 0.0f, 1.0f);
+	//float4 col = float4(massVel.x + 0.5f, massVel.y + 0.5f, 0.0f, 1.0f);
+	//float4 col = pow(massVel.w,5.0f)*10.0f;
+	//float4 col = massVel.w / 1.0f;
+	float col = InkReadGrid[sampleSite].w + (massVel.w * 0.1f);
+
+	/*if (massVel.w < 0.333f)
+	{
+		col.z = massVel.w * 3.0f;
+	}
+	else if (massVel.w < 0.666f && massVel.w >= 0.333f)
+	{
+		col.y = (massVel.w - 0.333f) * 3.0f;
+	}
+	else if (massVel.w >= 0.666f)
+	{
+		col.x = (massVel.w - 0.666f) * 3.0f;
+	}*/
+
+	outputImage[threadID.xy] = IsFinalMassVelError(massVel) ?  float4(0.5f, 0.0f, 0.0f, 1.0f) : col;
 }

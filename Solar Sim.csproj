@@ -70,9 +70,10 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="GridFluid\GridFluidSim.cs" />
-    <Compile Include="GridFluid\GridOutputShader.cs" />
+    <Compile Include="GridFluid\OutputShader.cs" />
     <Compile Include="GridFluid\GridTextureSet.cs" />
-    <Compile Include="GridFluid\GridFluidShader.cs" />
+    <Compile Include="GridFluid\TransportShader.cs" />
+    <Compile Include="GridFluid\PressureShader.cs" />
     <Compile Include="GridFluid\TestSetups.cs" />
     <Compile Include="HybridFluid\HybridFluidSim.cs" />
     <Compile Include="HybridFluid\ParticleBuffers.cs" />
