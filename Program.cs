@@ -26,7 +26,8 @@ namespace SolarSim
                 new HybridFluidSim(
                     _finalRender,
                     _device);*/
-            _simulation = new GridFluid.GridFluidSim(_device, _finalRender.UAV);
+            //_simulation = new GridFluid.GridFluidSim(_device, _finalRender.UAV);
+            _simulation = new MovingGridFluid.MovingGridFluid(_device, _finalRender.UAV);
 
             // Main loop
             MessagePump.Run(form, SimMain);
