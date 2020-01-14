@@ -19,7 +19,7 @@ float4 ApplyBoundaryConditions(uint3 location, float4 currentMassVel)
 		{
 			InkWriteGrid[location] = 1.0f;
 		}
-		return float4(0.03f, 0.0f, 0.0f, 0.5f);
+		return float4(0.03f, 0.0f, 0.0f, 0.1f);
 	}
 
 	if (location.x > #Resolution#  - 2 ||
@@ -28,7 +28,7 @@ float4 ApplyBoundaryConditions(uint3 location, float4 currentMassVel)
 		location.z < 2 ||
 		location.z > #Resolution#    - 2)
 	{
-		return float4(currentMassVel.x, currentMassVel.y, currentMassVel.z, 0.5f);
+		return float4(currentMassVel.x, currentMassVel.y, currentMassVel.z, 0.1f);
 	}
 
 	/*if (location.x == 128 && location.y == 128 && location.z == 128)
@@ -51,14 +51,15 @@ float ObstructionFlux(int3 location)
 	return 1.0f;
 }
 
+// Assumes fluxAxisOutward is normalised
 float CalcFlux(float4 insideMasVel, float4 outsideMasVel, float3 fluxAxisOutward)
 {
-	float3 boundaryVelocity = (insideMasVel.xyz + outsideMasVel.xyz) / 2.0f;
+	float3 boundaryVelocity = ((insideMasVel.xyz * insideMasVel.w) + (outsideMasVel.xyz * outsideMasVel.w)) / 2.0f;
 
-	float fluxIn = max(dot(boundaryVelocity.xyz,-fluxAxisOutward), 0.0f) * outsideMasVel.w;
-	float fluxOut =max(dot(boundaryVelocity.xyz, fluxAxisOutward), 0.0f) * insideMasVel.w;
+	float fluxIn = max(dot(boundaryVelocity.xyz, -fluxAxisOutward), 0.0f);
+	float fluxOut = max(dot(boundaryVelocity.xyz, fluxAxisOutward), 0.0f);
 
-	return  fluxIn - fluxOut;
+	return clamp(fluxIn - fluxOut, -0.16, 0.16);
 }
 
 float4 ApplyTransport(uint3 location)
@@ -90,7 +91,7 @@ float4 ApplyTransport(uint3 location)
 
 	float slipVel = 1.0f;
 
-	float4 shear = 0.0f;
+	//float4 shear = 0.0f;
 
 	const float viscosity = 0.0f;
 
@@ -110,10 +111,10 @@ float4 ApplyTransport(uint3 location)
 		totalInk += max(flux, 0.0f) * neighbourInk;
 		totalInk += min(flux, 0.0f) * oldInk;
 
-		float4 thisShear = neighbourMasVel;
-		thisShear.xyz *= thisShear.w;
+		//float4 thisShear = neighbourMasVel;
+		//thisShear.xyz *= thisShear.w;
 
-		shear += thisShear;
+		//shear += thisShear;
 	}
 
 	massAfterOutflow = max(massAfterOutflow, 0.0f);
@@ -122,8 +123,8 @@ float4 ApplyTransport(uint3 location)
 
 	float4 newMassVel = 0.0f;
 	newMassVel.w = max(totalMass, 0.00001f);
-	newMassVel.xyz = (totalCellMomentum / max(totalMass, 0.00001f)) * slipVel * (1.0f - viscosity);
-	massVel.xyz += (shear.xyz / shear.w) * viscosity;
+	newMassVel.xyz = (totalCellMomentum / max(totalMass, 0.00001f)) * slipVel;// *(1.0f - viscosity);
+	//massVel.xyz += (shear.xyz / shear.w) * viscosity;
 
 	InkWriteGrid[location] = totalInk;
 
@@ -145,8 +146,8 @@ float4 ApplyPressure(uint3 location)
 	};
 
 	float pressureConstant = 0.0001f;
-	const float stateExponent = 5.0f;
-	const float pressureOffset = 0.0f;
+	const float stateExponent = 3.0f;
+	const float pressureOffset = 1.0f;
 	const float meanDensity = 0.3f;
 
 	for (int i = 0; i < 6; i++)
@@ -164,10 +165,10 @@ float4 ApplyPressure(uint3 location)
 		oldMassVel.xyz += effect;
 	}
 
-	float safeVal = 0.48f;
+	float safeVal = 0.16f;
 	oldMassVel.x = clamp(oldMassVel.x, -safeVal, safeVal);
 	oldMassVel.y = clamp(oldMassVel.y, -safeVal, safeVal);
-	oldMassVel.z = clamp(oldMassVel.z, -safeVal, safeVal);
+	oldMassVel.z = 0.0f;// clamp(oldMassVel.z, -safeVal, safeVal);
 
 	return oldMassVel;
 }
@@ -230,8 +231,8 @@ void OutputGrid(uint3 threadID : SV_DispatchThreadID)
 
 	//float4 col = float4(massVel.x + 0.5f, massVel.y + 0.5f, 0.0f, 1.0f);
 	//float4 col = pow(massVel.w,5.0f)*10.0f;
-	//float4 col = massVel.w / 1.0f;
-	float col = InkReadGrid[sampleSite].w + (massVel.w * 0.1f);
+	float4 col = massVel.w / 1.0f;
+	//float col = InkReadGrid[sampleSite].w + (massVel.w * 0.1f);
 
 	/*if (massVel.w < 0.333f)
 	{

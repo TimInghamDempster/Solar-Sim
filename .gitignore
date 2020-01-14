@@ -301,3 +301,5 @@ $RECYCLE.BIN/
 # Windows shortcuts
 *.lnk
 *.nsight-gfxproj
+/SlimDx/DirectX Redist
+/SlimDx

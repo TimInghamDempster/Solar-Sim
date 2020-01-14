@@ -101,7 +101,9 @@ namespace SolarSim.GridFluid
             _transportShader.Dispatch();
             _massVelBuffers.Tick();
             _pressureStep.Dispatch();
+            _massVelBuffers.Tick();
             _outputShader.Dispatch();
+            _massVelBuffers.Tick();
         }
 
     }
