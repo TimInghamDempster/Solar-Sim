@@ -16,6 +16,10 @@ namespace SolarSim.MovingGridFluid
 
         private readonly OutputShader _outputShader;
         private readonly ItemCount<Pixel> _resolution = new ItemCount<Pixel>(256);
+        private readonly int _readBufferSlot = 2;
+        private readonly int _writeBufferSlot = 0;
+        private readonly UpdateFluidShader _updateFluidShader;
+        private readonly FlipFlop<Texture3DAndViews> _massPosBuffers;
 
         public MovingGridFluid(
             Device device, 
@@ -27,12 +31,15 @@ namespace SolarSim.MovingGridFluid
             MarkupList =
                  new List<MarkupTag>()
                  {
-                    //new MarkupTag("GridReadSlot", _readBufferSlot),
-                   // new MarkupTag("GridWriteSlot", _writeBufferSlot),
-                   // new MarkupTag("InkReadSlot", _inkReadBufferSlot),
-                   // new MarkupTag("InkWriteSlot", _inkWriteBufferSlot),
+                    new MarkupTag("GridReadSlot", _readBufferSlot),
+                    new MarkupTag("GridWriteSlot", _writeBufferSlot),
                     new MarkupTag("Resolution", _resolution)
                  };
+
+            var pressureTextureA = new Texture3DAndViews(device, SlimDX.DXGI.Format.R32G32B32A32_Float, _resolution, _resolution, _resolution);
+            var pressureTextureB = new Texture3DAndViews(device, SlimDX.DXGI.Format.R32G32B32A32_Float, _resolution, _resolution, _resolution);
+
+            _massPosBuffers = new FlipFlop<Texture3DAndViews>(pressureTextureA, pressureTextureB);
 
             var generatedFilename =
                GenerateTempFile(
@@ -46,20 +53,31 @@ namespace SolarSim.MovingGridFluid
                     device,
                     _resolution,
                     outputBuffer,
-                    //_massVelBuffers,
-                    0,//_readBufferSlot,
-                    0,//_writeBufferSlot,
-                      //_inkBuffers,
-                    0);//_inkReadBufferSlot);
+                    _massPosBuffers,
+                    _readBufferSlot,
+                    _writeBufferSlot);
+
+            _updateFluidShader =
+                new UpdateFluidShader(
+                    generatedFilename,
+                    device,
+                    _massPosBuffers,
+                    _readBufferSlot,
+                    _writeBufferSlot,
+                    _resolution);
         }
 
         public void Dispose()
         {
+            _updateFluidShader.Dispose();
+            _massPosBuffers.Dispose();
             _outputShader.Dispose();
         }
 
         public void SimMain(int frameCount)
         {
+            _massPosBuffers.Tick();
+            _updateFluidShader.Dispatch();
             _outputShader.Dispatch();
         }
     }

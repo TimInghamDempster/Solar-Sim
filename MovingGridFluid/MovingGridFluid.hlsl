@@ -1,9 +1,9 @@
 RWTexture2D<float4> outputImage : register(t#OutputSlot#);
 
-/*Texture3D<float4> ReadGrid : register(t#GridReadSlot#);
-RWTexture3D<float4> WriteGrid : register(t#GridWriteSlot#);
+Texture3D<float4> PosMassReadGrid : register(t#GridReadSlot#);
+RWTexture3D<float4> PosMassWriteGrid : register(t#GridWriteSlot#);
 
-Texture3D<float4> InkReadGrid : register(t#InkReadSlot#);
+/*Texture3D<float4> InkReadGrid : register(t#InkReadSlot#);
 RWTexture3D<float4> InkWriteGrid : register(t#InkWriteSlot#);
 
 float4 ApplyBoundaryConditions(uint3 location, float4 currentMassVel)
@@ -38,13 +38,21 @@ float4 ApplyBoundaryConditions(uint3 location, float4 currentMassVel)
 	/*return currentMassVel;
 }*/
 
+[numthreads(#OutputThreads#, #OutputThreads#, #OutputThreads#)]
+void UpdateFluid(uint3 threadID : SV_DispatchThreadID)
+{
+	float4 previousMassPos = PosMassReadGrid[threadID];
+	previousMassPos.x += 0.01;
+	PosMassWriteGrid[threadID] = previousMassPos;
+}
+
 [numthreads(#OutputThreads#, #OutputThreads#, 1)]
 void OutputGrid(uint3 threadID : SV_DispatchThreadID)
 {
 	uint3 sampleSite = threadID;
 	sampleSite.z = #Resolution# / 2;
 
-	//float4 massVel = ReadGrid[sampleSite];
+	float4 massPos = PosMassReadGrid[sampleSite];
 
 	//float4 col = float4(massVel.x + 0.5f, massVel.y + 0.5f, 0.0f, 1.0f);
 	//float4 col = pow(massVel.w,5.0f)*10.0f;
@@ -64,5 +72,8 @@ void OutputGrid(uint3 threadID : SV_DispatchThreadID)
 		col.x = (massVel.w - 0.666f) * 3.0f;
 	}*/
 
-	outputImage[threadID.xy] = 0.5f;// IsFinalMassVelError(massVel) ? float4(0.5f, 0.0f, 0.0f, 1.0f) : col;
+	float scale = 10.0f;
+	float2 scaledAndOffSetPos = (threadID.xy + massPos.xy) * scale;
+
+	outputImage[scaledAndOffSetPos] = 0.5f;// IsFinalMassVelError(massVel) ? float4(0.5f, 0.0f, 0.0f, 1.0f) : col;
 }
