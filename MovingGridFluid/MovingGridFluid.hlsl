@@ -42,7 +42,7 @@ void UpdateFluid(uint3 threadID : SV_DispatchThreadID)
 		float2 delta = totalPos.xy - obstructionPos;
 		delta = normalize(delta);
 
-		float speedIntoObstruction = dot(velocity, delta);
+		float speedIntoObstruction = min(dot(velocity, delta), 0.0f);
 
 		float2 speedChange = delta * speedIntoObstruction * 1.1f;
 		velocity.xy -= speedChange;
