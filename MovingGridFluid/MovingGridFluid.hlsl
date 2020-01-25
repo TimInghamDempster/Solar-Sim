@@ -7,55 +7,49 @@ Texture3D<float4> VelocityReadGrid : register(t#VelocityGridReadSlot#);
 RWTexture3D<float4> VelocityWriteGrid : register(t#VelocityGridWriteSlot#);
 
 /*Texture3D<float4> InkReadGrid : register(t#InkReadSlot#);
-RWTexture3D<float4> InkWriteGrid : register(t#InkWriteSlot#);
+RWTexture3D<float4> InkWriteGrid : register(t#InkWriteSlot#);*/
 
-float4 ApplyBoundaryConditions(uint3 location, float4 currentMassVel)
+bool IsInsideObstruction(float3 pos)
 {
+	float2 obstructionPos = float2(#ObsPos#, #ObsPos#);
 
-	if (location.x < 2)
-	{
-		if (location.y % 10 == 0)
-		{
-			InkWriteGrid[location] = 0.0f;
-		}
-		else
-		{
-			InkWriteGrid[location] = 1.0f;
-		}
-		return float4(0.03f, 0.0f, 0.0f, 0.1f);
-	}
+	float2 delta = pos.xy - obstructionPos;
 
-	if (location.x > #Resolution#  - 2 ||
-		location.y < 2 ||
-		location.y > #Resolution#   - 2 ||
-		location.z < 2 ||
-		location.z > #Resolution#    - 2)
-	{
-		return float4(currentMassVel.x, currentMassVel.y, currentMassVel.z, 0.1f);
-	}*/
-
-	/*if (location.x == 128 && location.y == 128 && location.z == 128)
-	{
-		return float4(0.0f, 0.0f, 0.0f, 0.9f);
-	}*/
-	/*return currentMassVel;
-}*/
+	return length(delta) < 4.0f;
+}
 
 [numthreads(#OutputThreads#, #OutputThreads#, #OutputThreads#)]
 void InitialiseFluid(uint3 threadID : SV_DispatchThreadID)
 {
+	float mass = IsInsideObstruction(threadID.xyz) ? 0.0f : 1.0f;
 	VelocityWriteGrid[threadID] = float4(0.01f, 0.0f, 0.0f, 0.0f);
-	PosMassWriteGrid[threadID] = float4(0.0f, 0.0f, 0.0f, 1.0f);
+	PosMassWriteGrid[threadID] = float4(0.0f, 0.0f, 0.0f, mass);
 }
 
 [numthreads(#OutputThreads#, #OutputThreads#, #OutputThreads#)]
 void UpdateFluid(uint3 threadID : SV_DispatchThreadID)
 {
-	float4 previousMassPos = PosMassReadGrid[threadID];
+	float4 posMass = PosMassReadGrid[threadID];
 	float4 velocity = VelocityReadGrid[threadID];
-	previousMassPos += velocity;
-	PosMassWriteGrid[threadID] = previousMassPos;
-	VelocityWriteGrid[threadID] = VelocityReadGrid[threadID];
+	
+	posMass += velocity;
+
+	float3 totalPos = posMass + threadID;
+	float2 obstructionPos = float2(#ObsPos#, #ObsPos#);
+
+	if (IsInsideObstruction(totalPos))
+	{
+		float2 delta = totalPos.xy - obstructionPos;
+		delta = normalize(delta);
+
+		float speedIntoObstruction = dot(velocity, delta);
+
+		float2 speedChange = delta * speedIntoObstruction * 1.1f;
+		velocity.xy -= speedChange;
+	}
+
+	PosMassWriteGrid[threadID] = posMass;
+	VelocityWriteGrid[threadID] = velocity;
 }
 
 [numthreads(#OutputThreads#, #OutputThreads#, 1)]

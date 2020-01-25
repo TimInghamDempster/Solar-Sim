@@ -39,7 +39,8 @@ namespace SolarSim.MovingGridFluid
                     new MarkupTag("GridWriteSlot", _writeBufferSlot),
                     new MarkupTag("VelocityGridReadSlot", _velReadBufferSlot),
                     new MarkupTag("VelocityGridWriteSlot", _velWriteBufferSlot),
-                    new MarkupTag("Resolution", _resolution)
+                    new MarkupTag("Resolution", _resolution),
+                    new MarkupTag("ObsPos", 64.0f)
                  };
 
             var pressureTextureA = new Texture3DAndViews(device, SlimDX.DXGI.Format.R32G32B32A32_Float, _resolution, _resolution, _resolution);
