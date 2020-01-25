@@ -3,7 +3,7 @@ using SlimDXHelpers;
 
 namespace SolarSim.MovingGridFluid
 {
-    public class UpdateFluidShader : AbstractComputeShader
+    public class InitialiseFluidShader : AbstractComputeShader
     {
         private readonly FlipFlop<Texture3DAndViews> _dataBuffer;
         private readonly int _gridReadSlot;
@@ -13,7 +13,7 @@ namespace SolarSim.MovingGridFluid
         private readonly int _velocityGridWriteSlot;
         private const int ThreadGroupSize = 8;
 
-        public UpdateFluidShader(
+        public InitialiseFluidShader(
             string filename,
             Device device,
             FlipFlop<Texture3DAndViews> dataBuffer,
@@ -23,7 +23,7 @@ namespace SolarSim.MovingGridFluid
             FlipFlop<Texture3DAndViews> velocityBuffer,
             int velocityGridReadSlot,
             int velocityGridWriteSlot) :
-            base(filename, "UpdateFluid", device)
+            base(filename, "InitialiseFluid", device)
         {
             _dataBuffer = dataBuffer;
             _gridReadSlot = gridReadSlot;

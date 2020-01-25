@@ -35,7 +35,7 @@ namespace SlimDXHelpers
                 Usage = Usage.RenderTargetOutput
             };
 
-            SlimDX.Direct3D11.Device.CreateWithSwapChain(DriverType.Hardware, DeviceCreationFlags.None, desc, out device, out swapChain);
+            SlimDX.Direct3D11.Device.CreateWithSwapChain(DriverType.Hardware, DeviceCreationFlags.Debug, desc, out device, out swapChain);
 
             Factory factory = swapChain.GetParent<Factory>();
             factory.SetWindowAssociation(form.Handle, WindowAssociationFlags.IgnoreAll);

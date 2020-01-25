@@ -3,6 +3,9 @@ RWTexture2D<float4> outputImage : register(t#OutputSlot#);
 Texture3D<float4> PosMassReadGrid : register(t#GridReadSlot#);
 RWTexture3D<float4> PosMassWriteGrid : register(t#GridWriteSlot#);
 
+Texture3D<float4> VelocityReadGrid : register(t#VelocityGridReadSlot#);
+RWTexture3D<float4> VelocityWriteGrid : register(t#VelocityGridWriteSlot#);
+
 /*Texture3D<float4> InkReadGrid : register(t#InkReadSlot#);
 RWTexture3D<float4> InkWriteGrid : register(t#InkWriteSlot#);
 
@@ -39,11 +42,20 @@ float4 ApplyBoundaryConditions(uint3 location, float4 currentMassVel)
 }*/
 
 [numthreads(#OutputThreads#, #OutputThreads#, #OutputThreads#)]
+void InitialiseFluid(uint3 threadID : SV_DispatchThreadID)
+{
+	VelocityWriteGrid[threadID] = float4(0.01f, 0.0f, 0.0f, 0.0f);
+	PosMassWriteGrid[threadID] = float4(0.0f, 0.0f, 0.0f, 1.0f);
+}
+
+[numthreads(#OutputThreads#, #OutputThreads#, #OutputThreads#)]
 void UpdateFluid(uint3 threadID : SV_DispatchThreadID)
 {
 	float4 previousMassPos = PosMassReadGrid[threadID];
-	previousMassPos.x += 0.01;
+	float4 velocity = VelocityReadGrid[threadID];
+	previousMassPos += velocity;
 	PosMassWriteGrid[threadID] = previousMassPos;
+	VelocityWriteGrid[threadID] = VelocityReadGrid[threadID];
 }
 
 [numthreads(#OutputThreads#, #OutputThreads#, 1)]
@@ -75,5 +87,5 @@ void OutputGrid(uint3 threadID : SV_DispatchThreadID)
 	float scale = 10.0f;
 	float2 scaledAndOffSetPos = (threadID.xy + massPos.xy) * scale;
 
-	outputImage[scaledAndOffSetPos] = 0.5f;// IsFinalMassVelError(massVel) ? float4(0.5f, 0.0f, 0.0f, 1.0f) : col;
+	outputImage[scaledAndOffSetPos] = massPos.w;// IsFinalMassVelError(massVel) ? float4(0.5f, 0.0f, 0.0f, 1.0f) : col;
 }
