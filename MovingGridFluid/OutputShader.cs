@@ -10,6 +10,8 @@ namespace SolarSim.MovingGridFluid
     {
         private readonly UnorderedAccessView _outputBuffer;
         private readonly FlipFlop<Texture3DAndViews> _dataBuffer;
+        private readonly FlipFlop<Texture3DAndViews> _veloctiyBuffer;
+        private readonly int _velocityReadSlot;
         private readonly int _gridReadSlot;
         private readonly int _gridWriteSlot;
 
@@ -29,6 +31,8 @@ namespace SolarSim.MovingGridFluid
             ItemCount<Pixel> outputResolution,
             UnorderedAccessView outputBuffer,
             FlipFlop<Texture3DAndViews> dataBuffer,
+            FlipFlop<Texture3DAndViews> velocityBuffer,
+            int velocityReadSlot,
             int gridReadSlot,
             int gridWriteSlot) :
             base(filename, "OutputGrid", device)
@@ -41,6 +45,8 @@ namespace SolarSim.MovingGridFluid
             _threadGroupsY = outputResolution.Count / ThreadGroupSize;
             _threadGroupsZ = 1;
             _dataBuffer = dataBuffer;
+            _veloctiyBuffer = velocityBuffer;
+            _velocityReadSlot = velocityReadSlot;
         }
 
         protected override void PreviewDispatch(Device device)
@@ -56,6 +62,7 @@ namespace SolarSim.MovingGridFluid
                     new float[] { 0.0f, 0.0f, 0.0f, 0.0f });
 
             _deviceShader.SetShaderResource(_dataBuffer.ReadObject.SRV, _gridReadSlot);
+            _deviceShader.SetShaderResource(_veloctiyBuffer.ReadObject.SRV, _velocityReadSlot);
         }
 
         protected override void PostDispatch(Device device)

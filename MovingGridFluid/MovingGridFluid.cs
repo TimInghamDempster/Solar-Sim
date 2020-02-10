@@ -65,6 +65,8 @@ namespace SolarSim.MovingGridFluid
                     _resolution,
                     outputBuffer,
                     _massPosBuffers,
+                    _velocityBuffers,
+                    _velReadBufferSlot,
                     _readBufferSlot,
                     _writeBufferSlot);
 
@@ -109,9 +111,9 @@ namespace SolarSim.MovingGridFluid
 
         public void SimMain(int frameCount)
         {
+            _updateFluidShader.Dispatch();
             _massPosBuffers.Tick();
             _velocityBuffers.Tick();
-            _updateFluidShader.Dispatch();
             _outputShader.Dispatch();
         }
     }

@@ -3,8 +3,8 @@ RWTexture2D<float4> outputImage : register(t#OutputSlot#);
 Texture3D<float4> PosMassReadGrid : register(t#GridReadSlot#);
 RWTexture3D<float4> PosMassWriteGrid : register(t#GridWriteSlot#);
 
-Texture3D<float4> VelocityReadGrid : register(t#VelocityGridReadSlot#);
-RWTexture3D<float4> VelocityWriteGrid : register(t#VelocityGridWriteSlot#);
+Texture3D<float4> VelocityDensityReadGrid : register(t#VelocityGridReadSlot#);
+RWTexture3D<float4> VelocityDensityWriteGrid : register(t#VelocityGridWriteSlot#);
 
 /*Texture3D<float4> InkReadGrid : register(t#InkReadSlot#);
 RWTexture3D<float4> InkWriteGrid : register(t#InkWriteSlot#);*/
@@ -21,35 +21,107 @@ bool IsInsideObstruction(float3 pos)
 [numthreads(#OutputThreads#, #OutputThreads#, #OutputThreads#)]
 void InitialiseFluid(uint3 threadID : SV_DispatchThreadID)
 {
-	float mass = IsInsideObstruction(threadID.xyz) ? 0.0f : 1.0f;
-	VelocityWriteGrid[threadID] = float4(0.01f, 0.0f, 0.0f, 0.0f);
+	float mass = IsInsideObstruction(threadID.xyz) ? 0.0f : 0.5f;
+	VelocityDensityWriteGrid[threadID] = float4(0.1f, 0.0f, 0.0f, mass);
 	PosMassWriteGrid[threadID] = float4(0.0f, 0.0f, 0.0f, mass);
+}
+
+// Incompressible fluids act as if density is
+// very different to compressible fluids,
+// implementation of weakly compressible SPH
+float CalcPressure(float actualDensity)
+{
+	bool isGas = true;
+	float targetDensity = 0.5f;
+	float stiffness = 7.0f;
+	float pressureConstant = 100.0f;
+
+	if (isGas)
+	{
+		return actualDensity * pressureConstant;
+	}
+	else
+	{
+		return max(0.0f, pow((actualDensity / targetDensity) - 1.0f, stiffness));
+	}
 }
 
 [numthreads(#OutputThreads#, #OutputThreads#, #OutputThreads#)]
 void UpdateFluid(uint3 threadID : SV_DispatchThreadID)
 {
+	float timestep = 0.1f;
+	float stiffness = 0.001f;
+
 	float4 posMass = PosMassReadGrid[threadID];
-	float4 velocity = VelocityReadGrid[threadID];
+	float4 velocityDensity = VelocityDensityReadGrid[threadID];
 	
-	posMass += velocity;
-
+	posMass.xyz += velocityDensity.xyz * timestep;
 	float3 totalPos = posMass + threadID;
-	float2 obstructionPos = float2(#ObsPos#, #ObsPos#);
 
+	int3 dir[6] =
+	{
+		int3( 1, 0, 0),
+		int3(-1, 0, 0),
+		int3( 0, 1, 0),
+		int3( 0,-1, 0),
+		int3( 0, 0, 1),
+		int3( 0, 0,-1)
+	};
+	float3 neighbourPositions[6];
+
+	float myPressure =
+		CalcPressure(velocityDensity.w);
+
+	// Neighbour interaction
+	for (int i = 0; i < 6; i++)
+	{
+		int3 neighbourGridLoc = threadID + dir[i];
+		float4 neighbourPosMass = PosMassReadGrid[neighbourGridLoc];
+		neighbourPosMass.xyz += neighbourGridLoc;
+
+		float3 delta = totalPos.xyz - neighbourPosMass.xyz;
+		float3 neighbourDir = delta / length(delta);
+
+		float neighbourPressure = 
+			CalcPressure(
+				VelocityDensityReadGrid[neighbourGridLoc].w);
+
+		float densityDiff = myPressure - neighbourPressure;
+
+		float pressureGradient = densityDiff / length(delta);
+
+		float force = pressureGradient;
+
+		velocityDensity.xyz -= force * neighbourDir * timestep * stiffness;
+		velocityDensity.z = 0.0f;
+
+		neighbourPositions[i] = neighbourPosMass.xyz;
+	}
+
+	float3 boundingBox = 
+		float3(
+			neighbourPositions[0].x - neighbourPositions[1].x,
+			neighbourPositions[2].y - neighbourPositions[3].y,
+			neighbourPositions[4].z - neighbourPositions[5].z);
+	
+	float volume = boundingBox.x * boundingBox.y * boundingBox.z / 8.0f;
+	velocityDensity.w = posMass.w / volume;
+
+	// Handle obstruction
+	float2 obstructionPos = float2(#ObsPos#, #ObsPos#);
 	if (IsInsideObstruction(totalPos))
 	{
 		float2 delta = totalPos.xy - obstructionPos;
 		delta = normalize(delta);
 
-		float speedIntoObstruction = min(dot(velocity, delta), 0.0f);
+		float speedIntoObstruction = min(dot(velocityDensity, delta), 0.0f);
 
 		float2 speedChange = delta * speedIntoObstruction * 1.1f;
-		velocity.xy -= speedChange;
+		velocityDensity.xy = 0.0f;// speedChange;
 	}
 
 	PosMassWriteGrid[threadID] = posMass;
-	VelocityWriteGrid[threadID] = velocity;
+	VelocityDensityWriteGrid[threadID] = velocityDensity;
 }
 
 [numthreads(#OutputThreads#, #OutputThreads#, 1)]
@@ -58,28 +130,12 @@ void OutputGrid(uint3 threadID : SV_DispatchThreadID)
 	uint3 sampleSite = threadID;
 	sampleSite.z = #Resolution# / 2;
 
-	float4 massPos = PosMassReadGrid[sampleSite];
-
-	//float4 col = float4(massVel.x + 0.5f, massVel.y + 0.5f, 0.0f, 1.0f);
-	//float4 col = pow(massVel.w,5.0f)*10.0f;
-	//float4 col = massVel.w / 1.0f;
-	//float col = InkReadGrid[sampleSite].w + (massVel.w * 0.1f);
-
-	/*if (massVel.w < 0.333f)
-	{
-		col.z = massVel.w * 3.0f;
-	}
-	else if (massVel.w < 0.666f && massVel.w >= 0.333f)
-	{
-		col.y = (massVel.w - 0.333f) * 3.0f;
-	}
-	else if (massVel.w >= 0.666f)
-	{
-		col.x = (massVel.w - 0.666f) * 3.0f;
-	}*/
+	float4 posMass = PosMassReadGrid[sampleSite];
+	float4 velocityDensity = VelocityDensityReadGrid[sampleSite];
 
 	float scale = 10.0f;
-	float2 scaledAndOffSetPos = (threadID.xy + massPos.xy) * scale;
-
-	outputImage[scaledAndOffSetPos] = massPos.w;// IsFinalMassVelError(massVel) ? float4(0.5f, 0.0f, 0.0f, 1.0f) : col;
+	float2 scaledAndOffSetPos = ((threadID.xy + posMass.xy) * scale) + 10.5f;
+	//outputImage[scaledAndOffSetPos] = IsFinalMassVelError(massVel) ? float4(0.5f, 0.0f, 0.0f, 1.0f) : col;
+	outputImage[scaledAndOffSetPos] = velocityDensity.w;
+	//outputImage[scaledAndOffSetPos] = posMass.w;
 }
