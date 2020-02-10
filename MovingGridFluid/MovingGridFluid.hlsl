@@ -34,7 +34,7 @@ float CalcPressure(float actualDensity)
 	bool isGas = true;
 	float targetDensity = 0.5f;
 	float stiffness = 7.0f;
-	float pressureConstant = 100.0f;
+	float pressureConstant = 0.05f;
 
 	if (isGas)
 	{
@@ -50,7 +50,6 @@ float CalcPressure(float actualDensity)
 void UpdateFluid(uint3 threadID : SV_DispatchThreadID)
 {
 	float timestep = 0.1f;
-	float stiffness = 0.001f;
 
 	float4 posMass = PosMassReadGrid[threadID];
 	float4 velocityDensity = VelocityDensityReadGrid[threadID];
@@ -92,7 +91,7 @@ void UpdateFluid(uint3 threadID : SV_DispatchThreadID)
 
 		float force = pressureGradient;
 
-		velocityDensity.xyz -= force * neighbourDir * timestep * stiffness;
+		velocityDensity.xyz -= force * neighbourDir * timestep;
 		velocityDensity.z = 0.0f;
 
 		neighbourPositions[i] = neighbourPosMass.xyz;
