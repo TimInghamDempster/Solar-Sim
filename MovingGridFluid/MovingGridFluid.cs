@@ -3,6 +3,7 @@ using SlimDXHelpers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using static SlimDXHelpers.ShaderFileEditor;
 
 namespace SolarSim.MovingGridFluid
@@ -21,6 +22,7 @@ namespace SolarSim.MovingGridFluid
         private readonly int _velReadBufferSlot = 3;
         private readonly int _velWriteBufferSlot = 1;
         private readonly UpdateFluidShader _updateFluidShader;
+        private readonly RemeshingShader _remeshingShader;
         private readonly InitialiseFluidShader _initialiseShader;
         private readonly FlipFlop<Texture3DAndViews> _massPosBuffers;
         private readonly FlipFlop<Texture3DAndViews> _velocityBuffers;
@@ -82,6 +84,18 @@ namespace SolarSim.MovingGridFluid
                     _velReadBufferSlot,
                     _velWriteBufferSlot);
 
+            _remeshingShader =
+                new RemeshingShader(
+                    generatedFilename,
+                    device,
+                    _massPosBuffers,
+                    _readBufferSlot,
+                    _writeBufferSlot,
+                    _resolution,
+                    _velocityBuffers,
+                    _velReadBufferSlot,
+                    _velWriteBufferSlot);
+
             _initialiseShader =
                 new InitialiseFluidShader(
                     generatedFilename,
@@ -104,6 +118,7 @@ namespace SolarSim.MovingGridFluid
         {
             _initialiseShader.Dispose();
             _updateFluidShader.Dispose();
+            _remeshingShader.Dispose();
             _massPosBuffers.Dispose();
             _velocityBuffers.Dispose();
             _outputShader.Dispose();
@@ -114,7 +129,17 @@ namespace SolarSim.MovingGridFluid
             _updateFluidShader.Dispatch();
             _massPosBuffers.Tick();
             _velocityBuffers.Tick();
+
+            if(frameCount % 20 == 0)
+            {
+                _remeshingShader.Dispatch();
+                _massPosBuffers.Tick();
+                _velocityBuffers.Tick();
+            }
+
             _outputShader.Dispatch();
+
+            //Thread.Sleep(1000);
         }
     }
 }

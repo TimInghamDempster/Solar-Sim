@@ -86,12 +86,14 @@
     <Compile Include="GridPressureFluid.cs" />
     <Compile Include="ISimulation.cs" />
     <Compile Include="MathsAndPhysics.cs" />
+    <Compile Include="MovingGridFluid\RemeshingShader.cs" />
     <Compile Include="MovingGridFluid\MovingGridFluid.cs" />
     <Compile Include="MovingGridFluid\OutputShader.cs" />
     <Compile Include="MovingGridFluid\InitialisationShader.cs" />
     <Compile Include="MovingGridFluid\UpdateFluidShader.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="SemiGridSPH\SemiGridSPHSimulation.cs" />
     <Compile Include="SPHFluidSim.cs" />
   </ItemGroup>
   <ItemGroup>
@@ -126,6 +128,7 @@
       <Name>SlimDXHelpers</Name>
     </ProjectReference>
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

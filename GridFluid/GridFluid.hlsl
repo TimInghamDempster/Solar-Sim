@@ -6,6 +6,11 @@ RWTexture3D<float4> WriteGrid : register(t#GridWriteSlot#);
 Texture3D<float4> InkReadGrid : register(t#InkReadSlot#);
 RWTexture3D<float4> InkWriteGrid : register(t#InkWriteSlot#);
 
+cbuffer directionBuffer: register(c0)
+{
+	float4 dirAndOffset;
+};
+
 float4 ApplyBoundaryConditions(uint3 location, float4 currentMassVel)
 {
 
@@ -66,15 +71,6 @@ float4 ApplyTransport(uint3 location)
 {
 	float4 massVel = ReadGrid[location];
 
-	float3 dir[6] =
-	{
-		float3( 1.0f, 0.0f, 0.0f),
-		float3(-1.0f, 0.0f, 0.0f),
-		float3( 0.0f, 1.0f, 0.0f),
-		float3( 0.0f,-1.0f, 0.0f),
-		float3( 0.0f, 0.0f, 1.0f),
-		float3( 0.0f, 0.0f,-1.0f)
-	};
 	float totalMass = massVel.w;
 
 	float oldInk = InkReadGrid[location];
@@ -95,27 +91,24 @@ float4 ApplyTransport(uint3 location)
 
 	const float viscosity = 0.0f;
 
-	for (int i = 0; i < 6; i++)
-	{
-		float4 neighbourMasVel = ReadGrid[location + dir[i]];
-		float neighbourInk = InkReadGrid[location + dir[i]];
+	float4 neighbourMasVel = ReadGrid[location + dirAndOffset.xyz];
+	float neighbourInk = InkReadGrid[location + dirAndOffset.xyz];
 		
-		float flux = CalcFlux(massVel, neighbourMasVel, dir[i]) * ObstructionFlux(location) * ObstructionFlux(location + dir[i]);
+	float flux = CalcFlux(massVel, neighbourMasVel, dirAndOffset.xyz) * ObstructionFlux(location) * ObstructionFlux(location + dirAndOffset.xyz);
 
-		totalMass += flux;
-		massAfterOutflow += min(flux, 0.0f); // This variable needs to know how much mass left the cell
-		totalCellMomentum += max(flux, 0.0f) * neighbourMasVel.xyz; // How much momentum came into the cell?  Can't be negative*/
+	totalMass += flux;
+	massAfterOutflow += min(flux, 0.0f); // This variable needs to know how much mass left the cell
+	totalCellMomentum += max(flux, 0.0f) * neighbourMasVel.xyz; // How much momentum came into the cell?  Can't be negative*/
 
-		slipVel *= ObstructionFlux(location + dir[i]);
+	slipVel *= ObstructionFlux(location + dirAndOffset.xyz);
 
-		totalInk += max(flux, 0.0f) * neighbourInk;
-		totalInk += min(flux, 0.0f) * oldInk;
+	totalInk += max(flux, 0.0f) * neighbourInk;
+	totalInk += min(flux, 0.0f) * oldInk;
 
-		//float4 thisShear = neighbourMasVel;
-		//thisShear.xyz *= thisShear.w;
+	//float4 thisShear = neighbourMasVel;
+	//thisShear.xyz *= thisShear.w;
 
-		//shear += thisShear;
-	}
+	//shear += thisShear;
 
 	massAfterOutflow = max(massAfterOutflow, 0.0f);
 

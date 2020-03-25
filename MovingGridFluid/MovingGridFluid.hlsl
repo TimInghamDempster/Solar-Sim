@@ -22,8 +22,58 @@ bool IsInsideObstruction(float3 pos)
 void InitialiseFluid(uint3 threadID : SV_DispatchThreadID)
 {
 	float mass = IsInsideObstruction(threadID.xyz) ? 0.0f : 0.5f;
-	VelocityDensityWriteGrid[threadID] = float4(0.1f, 0.0f, 0.0f, mass);
+	if (threadID.x != 0)
+	{
+		mass = 0.0f;
+	}
+	VelocityDensityWriteGrid[threadID] = float4(mass / 5.0f, 0.0f, 0.0f, mass);
 	PosMassWriteGrid[threadID] = float4(0.0f, 0.0f, 0.0f, mass);
+}
+
+[numthreads(#OutputThreads#, #OutputThreads#, #OutputThreads#)]
+void Remesh(uint3 threadID : SV_DispatchThreadID)
+{
+	float4 posMass = PosMassReadGrid[threadID];
+	int3 bbMin = int3(
+		posMass.x > 0.0f ? -1 : 0,
+		posMass.y > 0.0f ? -1 : 0,
+		posMass.z > 0.0f ? -1 : 0);
+	int3 bbMax = bbMin + int3(1, 1, 1);
+
+	int3 cellCorners[8];
+	cellCorners[0] = int3(bbMin.x, bbMin.y, bbMin.z);
+	cellCorners[1] = int3(bbMin.x, bbMin.y, bbMax.z);
+	cellCorners[2] = int3(bbMin.x, bbMax.y, bbMin.z);
+	cellCorners[3] = int3(bbMin.x, bbMax.y, bbMax.z);
+	cellCorners[4] = int3(bbMax.x, bbMin.y, bbMin.z);
+	cellCorners[5] = int3(bbMax.x, bbMin.y, bbMax.z);
+	cellCorners[6] = int3(bbMax.x, bbMax.y, bbMin.z);
+	cellCorners[7] = int3(bbMax.x, bbMax.y, bbMax.z);
+
+	float4 velocityMass = float4(0.0f, 0.0f, 0.0f, 0.0f);
+	for (int cornerId = 0; cornerId < 8; cornerId++)
+	{
+		int3 index = threadID + cellCorners[cornerId];
+
+		float4 velocityDensity = 
+		// Density = mass / volume and we are trying to
+		// calculate average mass for a cell of unit volume
+		velocityMass += VelocityDensityReadGrid[index];
+	}
+	velocityMass /= 8;
+	
+	if (IsInsideObstruction(threadID))
+	{
+		velocityMass = float4(0.0f, 0.0f, 0.0f, 0.0f);
+	}
+
+	if (threadID.x == 0)
+	{
+		velocityMass = float4(0.1f, 0.0f, 0.0f, 0.5f);
+	}
+
+	VelocityDensityWriteGrid[threadID] = velocityMass;
+	PosMassWriteGrid[threadID] = float4(0.0f, 0.0f, 0.0f, velocityMass.w);
 }
 
 // Incompressible fluids act as if density is

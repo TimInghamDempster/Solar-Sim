@@ -65,6 +65,9 @@
     <Compile Include="VectorExtensions.cs" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="MiniTri.fx">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
     <Content Include="SimpleFSQ.fx">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

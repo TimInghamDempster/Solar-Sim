@@ -1,4 +1,5 @@
-﻿using SlimDX.Direct3D11;
+﻿using SlimDX;
+using SlimDX.Direct3D11;
 using SlimDXHelpers;
 using System.Collections.Generic;
 using System.Linq;
@@ -20,6 +21,17 @@ namespace SolarSim.GridFluid
         private const int _inkReadBufferSlot = 3;
         private readonly ItemCount<Pixel> _resolution = new ItemCount<Pixel>(256);
         public List<MarkupTag> MarkupList { get; }
+
+        private readonly List<Vector4> _directions =
+            new List<Vector4>
+            {
+                new Vector4( 1,  0, 0, 0),
+                new Vector4(-1,  0, 0, 0),
+                new Vector4( 0,  1, 0, 0),
+                new Vector4( 0, -1, 0, 0),
+                new Vector4( 0,  0, 1, 0),
+                new Vector4( 0,  0,-1, 0),
+            };
            
 
         public GridFluidSim(Device device, UnorderedAccessView outputBuffer)
@@ -98,8 +110,14 @@ namespace SolarSim.GridFluid
         {
             _massVelBuffers.Tick();
             _inkBuffers.Tick();
-            _transportShader.Dispatch();
-            _massVelBuffers.Tick();
+
+            foreach (var direction in _directions)
+            {
+                _transportShader.SetDirectionAndOffset(direction);
+                _transportShader.Dispatch();
+                _massVelBuffers.Tick();
+            }
+
             _pressureStep.Dispatch();
             _massVelBuffers.Tick();
             _outputShader.Dispatch();

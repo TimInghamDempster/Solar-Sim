@@ -1,4 +1,5 @@
-﻿using SlimDX.Direct3D11;
+﻿using SlimDX;
+using SlimDX.Direct3D11;
 using SlimDXHelpers;
 
 namespace SolarSim.GridFluid
@@ -11,6 +12,7 @@ namespace SolarSim.GridFluid
         private readonly FlipFlop<Texture3DAndViews> _inkBuffers;
         private readonly int _inkReadBufferSlot;
         private readonly int _inkWriteBufferSlot;
+        private Buffer _dirAndOffset;
         private const int ThreadGroupSize = 8;
 
         public TransportShader(
@@ -34,6 +36,14 @@ namespace SolarSim.GridFluid
             _threadGroupsX = gridResolution.Count / ThreadGroupSize;
             _threadGroupsY = gridResolution.Count / ThreadGroupSize;
             _threadGroupsZ = gridResolution.Count / ThreadGroupSize;
+            _dirAndOffset = new Buffer(device, 4 * sizeof(int), ResourceUsage.Dynamic, BindFlags.ConstantBuffer, CpuAccessFlags.Write, ResourceOptionFlags.None, 4 * sizeof(int));
+        }
+
+        public void SetDirectionAndOffset(Vector4 newDirAndOffset)
+        {
+            var dataBox = _device.ImmediateContext.MapSubresource(_dirAndOffset, 0, MapMode.WriteDiscard, MapFlags.None);
+            dataBox.Data.Write<Vector4>(newDirAndOffset);
+            _device.ImmediateContext.UnmapSubresource(_dirAndOffset, 0);
         }
 
         protected override void PreviewDispatch(Device device)
@@ -45,6 +55,8 @@ namespace SolarSim.GridFluid
 
             _deviceShader.SetUnorderedAccessView(_inkBuffers.WriteObject.UAV, _inkWriteBufferSlot);
             _deviceShader.SetShaderResource(_inkBuffers.ReadObject.SRV, _inkReadBufferSlot);
+
+            _deviceShader.SetConstantBuffer(_dirAndOffset, 0);
         }
 
         protected override void PostDispatch(Device device)
