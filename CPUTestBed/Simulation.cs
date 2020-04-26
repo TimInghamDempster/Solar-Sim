@@ -21,8 +21,12 @@ namespace CPUTestBed
         public int RenderHeight => _renderHeight;
 
         private readonly byte[] _backBuffer = new byte[_renderWidth * _renderHeight * _bytesPerPixel];
-        private readonly Box[] _boxes = new Box[_boxesPerAxis * _boxesPerAxis];
-        
+        private readonly Box[] _boxesA = new Box[_boxesPerAxis * _boxesPerAxis];
+        private readonly Box[] _boxesB = new Box[_boxesPerAxis * _boxesPerAxis];
+
+        private Box[] _currentBoxes;
+        private Box[] _previousBoxes;
+
         public Simulation()
         {
             CompositionTarget.Rendering += (o,e) => RunSimulation();
@@ -30,11 +34,14 @@ namespace CPUTestBed
 
             float boxSize = _renderWidth / _boxesPerAxis;
 
-
-            for (int i = 0; i < _boxes.Length; i++)
+            for (int i = 0; i < _boxesA.Length; i++)
             {
-                _boxes[i] = new Box(random, boxSize, (i / _boxesPerAxis) * boxSize, (i % _boxesPerAxis) * boxSize);
+                _boxesA[i] = new Box(random, boxSize, (i / _boxesPerAxis) * boxSize, (i % _boxesPerAxis) * boxSize); 
+                _boxesB[i] = new Box(random, boxSize, (i / _boxesPerAxis) * boxSize, (i % _boxesPerAxis) * boxSize);
             }
+
+            _currentBoxes = _boxesA;
+            _previousBoxes = _boxesB;
         }
 
         protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
@@ -64,11 +71,18 @@ namespace CPUTestBed
 
         private void UpdateParticles()
         {
-            foreach (var box in _boxes)
+            for (int i = 0; i < _currentBoxes.Length; i++)
             {
-                foreach (var particle in box.Particles)
+                var currentBox = _currentBoxes[i];
+                var previousBox = _previousBoxes[i];
+
+                for (int j = 0; j < currentBox.Particles.Length; j++)
                 {
-                    particle.Position += particle.Velocity;
+                    var particle = currentBox.Particles[j];
+                    var oldParticle = previousBox.Particles[j];
+
+                    particle.Position = oldParticle.Position + oldParticle.Velocity;
+                    particle.Velocity = oldParticle.Velocity;
 
                     if (particle.Position.X >= 1024 && particle.Velocity.X > 0)
                     {
@@ -88,11 +102,14 @@ namespace CPUTestBed
                     }
                 }
             }
+            var temp = _currentBoxes;
+            _currentBoxes = _previousBoxes;
+            _previousBoxes = temp;
         }
 
         private void DrawParticles()
         {
-            foreach (var box in _boxes)
+            foreach (var box in _currentBoxes)
             {
                 foreach (var particle in box.Particles)
                 {
