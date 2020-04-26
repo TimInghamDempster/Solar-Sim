@@ -15,20 +15,25 @@ namespace CPUTestBed
         private const int _renderHeight = 1024;
         private const int _bytesPerPixel = 4;
         private const int _backbufferStride = _renderWidth * _bytesPerPixel;
+        private const int _boxesPerAxis = 16;
 
         public int RenderWidth => _renderWidth;
         public int RenderHeight => _renderHeight;
 
         private readonly byte[] _backBuffer = new byte[_renderWidth * _renderHeight * _bytesPerPixel];
-        private readonly Particle[] _particles = new Particle[5000];
+        private readonly Box[] _boxes = new Box[_boxesPerAxis * _boxesPerAxis];
         
         public Simulation()
         {
             CompositionTarget.Rendering += (o,e) => RunSimulation();
             var random = new Random();
-            for(int i = 0; i < _particles.Length; i++)
+
+            float boxSize = _renderWidth / _boxesPerAxis;
+
+
+            for (int i = 0; i < _boxes.Length; i++)
             {
-                _particles[i] = new Particle(random);
+                _boxes[i] = new Box(random, boxSize, (i / _boxesPerAxis) * boxSize, (i % _boxesPerAxis) * boxSize);
             }
         }
 
@@ -59,39 +64,45 @@ namespace CPUTestBed
 
         private void UpdateParticles()
         {
-            foreach (var particle in _particles)
+            foreach (var box in _boxes)
             {
-                particle.Position += particle.Velocity;
+                foreach (var particle in box.Particles)
+                {
+                    particle.Position += particle.Velocity;
 
-                if (particle.Position.X >= 1024 && particle.Velocity.X > 0)
-                {
-                    particle.Velocity.X = -particle.Velocity.X;
-                }
-                if (particle.Position.Y >= 1024 && particle.Velocity.Y > 0)
-                {
-                    particle.Velocity.Y = -particle.Velocity.Y;
-                }
-                if (particle.Position.X < 0 && particle.Velocity.X < 0)
-                {
-                    particle.Velocity.X = -particle.Velocity.X;
-                }
-                if (particle.Position.Y < 0 && particle.Velocity.Y < 0)
-                {
-                    particle.Velocity.Y = -particle.Velocity.Y;
+                    if (particle.Position.X >= 1024 && particle.Velocity.X > 0)
+                    {
+                        particle.Velocity.X = -particle.Velocity.X;
+                    }
+                    if (particle.Position.Y >= 1024 && particle.Velocity.Y > 0)
+                    {
+                        particle.Velocity.Y = -particle.Velocity.Y;
+                    }
+                    if (particle.Position.X < 0 && particle.Velocity.X < 0)
+                    {
+                        particle.Velocity.X = -particle.Velocity.X;
+                    }
+                    if (particle.Position.Y < 0 && particle.Velocity.Y < 0)
+                    {
+                        particle.Velocity.Y = -particle.Velocity.Y;
+                    }
                 }
             }
         }
 
         private void DrawParticles()
         {
-            foreach (var particle in _particles)
+            foreach (var box in _boxes)
             {
-                int backBufferId = ToBackbufferID((int)particle.Position.X, (int)particle.Position.Y);
-                if (backBufferId != -1)
+                foreach (var particle in box.Particles)
                 {
-                    _backBuffer[backBufferId + 0] = 255;
-                    _backBuffer[backBufferId + 1] = 255;
-                    _backBuffer[backBufferId + 2] = 255;
+                    int backBufferId = ToBackbufferID((int)particle.Position.X, (int)particle.Position.Y);
+                    if (backBufferId != -1)
+                    {
+                        _backBuffer[backBufferId + 0] = box.R;
+                        _backBuffer[backBufferId + 1] = box.G;
+                        _backBuffer[backBufferId + 2] = 255;
+                    }
                 }
             }
         }

@@ -19,11 +19,11 @@ namespace CPUTestBed
 
         public Vector3() { }
 
-        public Vector3(Random random, float scale, float offset)
+        public Vector3(Random random, float scale, float offsetX, float offsetY)
         {
-            X = (float)random.NextDouble() * scale + offset;
-            Y = (float)random.NextDouble() * scale + offset;
-            Z = (float)random.NextDouble() * scale + offset;
+            X = (float)random.NextDouble() * scale + offsetX;
+            Y = (float)random.NextDouble() * scale + offsetY;
+            Z = (float)random.NextDouble() * scale + 0.0f;
         }
     }
 
@@ -32,10 +32,10 @@ namespace CPUTestBed
         public Vector3 Position { get; set; }
         public Vector3 Velocity { get; set; }
 
-        public Particle(Random random)
+        public Particle(Random random, float size, float offsetX, float offsetY)
         {
-            Position = new Vector3(random, 1024, 0);
-            Velocity = new Vector3(random, 10, -5);
+            Position = new Vector3(random, size, offsetX, offsetY);
+            Velocity = new Vector3(random, 10, -5, -5);
         }
     }
 }
