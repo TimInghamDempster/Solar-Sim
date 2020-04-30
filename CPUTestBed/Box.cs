@@ -4,19 +4,27 @@ namespace CPUTestBed
 {
     public class Box
     {
-        public Particle[] Particles { get; } = new Particle[64];
+        public Particle[] Particles { get; }
         public byte R { get; }
         public byte G { get; }
+        public Vector3 Lower { get; }
+        public Vector3 Upper { get; }
 
-        public Box(Random random, float size, float x, float y)
+        public Box(Random random, Vector3 lower, Vector3 upper, int particleCount, Particle nullParticle)
         {
+
+            Particles = new Particle[particleCount];
             for (int i = 0; i < Particles.Length; i++)
             {
-                Particles[i] = new Particle(random, size, x, y);
+                Particles[i] = new Particle(nullParticle);
+                //Particles[i] = new Particle(random, upper.X - lower.X, lower.X, lower.Y);
             }
 
-            R = (byte)(x / 4);
-            G = (byte)(y / 4);
+            R = (byte)(lower.X / 4);
+            G = (byte)(lower.Y / 4);
+
+            Lower = lower;
+            Upper = upper;
         }
     }
 }
