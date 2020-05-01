@@ -94,6 +94,7 @@ namespace CPUTestBed
             ClearBackbuffer();
             DrawGrid();
 
+            CalcDensities();
             UpdateParticles();
             UpdateBoundary();
             DrawParticles();
@@ -121,6 +122,35 @@ namespace CPUTestBed
 
 
             OnPropertyChanged(nameof(BackBufferSource));
+        }
+
+        private void CalcDensities()
+        {
+            for (int i = 0; i < _currentBoxes.Length; i++)
+            {
+                var coord = GetLocFromId(i);
+                var writeBox = _currentBoxes[i];
+
+                foreach (var writeParticle in writeBox.Particles)
+                {
+                    writeParticle.Density = 0.0f;
+                    foreach (var dir in _directions)
+                    {
+                        var readBox = GetBox(coord + dir, _previousBoxes);
+
+                        foreach(var readParticle in readBox.Particles)
+                        {
+                            if (readParticle.Id == writeParticle.Id) continue;
+
+                            var delta = readParticle.Position - writeParticle.Position;
+                            var dist = delta.Length;
+
+                            var densityContribution = MathsStuff.Lerp(0.0f, readParticle.Mass, MathF.Max(dist / (_renderWidth / _boxesPerAxis), 1.0f));
+                            writeParticle.Density += densityContribution;
+                        }
+                    }
+                }
+            }
         }
 
         private void DrawGrid()
@@ -351,8 +381,10 @@ namespace CPUTestBed
                     int backBufferId = ToBackbufferID((int)particle.Position.X, (int)particle.Position.Y);
                     if (backBufferId != -1)
                     {
-                        int col = (int)(particle.Mass * 128.0f);
+                        //int col = (int)(particle.Mass * 128.0f);
+                        int col = (int)(particle.Density * 1.0f);
                         if (col > 255) col = 255;
+                        if (col < 0) throw new Exception();
                         _backBuffer[backBufferId + 0] = (byte)col;
                         _backBuffer[backBufferId + 1] = (byte)col;
                         _backBuffer[backBufferId + 2] = (byte)col;

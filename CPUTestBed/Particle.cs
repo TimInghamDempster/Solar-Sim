@@ -28,6 +28,14 @@ namespace CPUTestBed
                 Z = a.Z + b.Z
             };
 
+        public static Vector3 operator -(Vector3 a, Vector3 b)
+            => new Vector3()
+            {
+                X = a.X - b.X,
+                Y = a.Y - b.Y,
+                Z = a.Z - b.Z
+            };
+
         public static Vector3 operator *(Vector3 a, float b)
             => new Vector3()
             {
@@ -51,6 +59,8 @@ namespace CPUTestBed
             Y = (float)random.NextDouble() * scale + offsetY;
             Z = (float)random.NextDouble() * scale + 0.0f;
         }
+
+        public float Length => MathF.Sqrt(X * X + Y * Y + Z * Z);
     }
 
     public class Particle
@@ -59,6 +69,8 @@ namespace CPUTestBed
         public Vector3 Velocity { get; set; }
 
         public float Mass { get; set; }
+
+        public float Density { get; set; }
 
         public int Id { get; }
 
