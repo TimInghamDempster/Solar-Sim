@@ -1,7 +1,7 @@
-﻿<Application x:Class="CPUTestBes.App"
+﻿<Application x:Class="CPUTestBed.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:CPUTestBes"
+             xmlns:local="clr-namespace:CPUTestBed"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
          

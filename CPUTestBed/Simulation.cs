@@ -45,6 +45,7 @@ namespace CPUTestBed
             new Int2() {X=  0, Y = -1},
             new Int2() {X=  1, Y = -1},
         };
+
         private readonly Random _random;
 
         public Simulation()
@@ -95,6 +96,8 @@ namespace CPUTestBed
             DrawGrid();
 
             CalcDensities();
+            ApplyForces();
+            CollideWithObstruction();
             UpdateParticles();
             UpdateBoundary();
             DrawParticles();
@@ -122,6 +125,68 @@ namespace CPUTestBed
 
 
             OnPropertyChanged(nameof(BackBufferSource));
+        }
+
+        private void CollideWithObstruction()
+        {
+            foreach(var box in _previousBoxes)
+            {
+                foreach(var particle in box.Particles)
+                {
+                    var obstructionLocation = new Vector3 { X = 128.0f, Y = 512.0f, Z = 0.0f };
+                    var delta = particle.Position - obstructionLocation;
+
+                    if(delta.Length < 32.0f)
+                    {
+                        var normalisedDelta = delta / delta.Length;
+                        var velocityTowardsCentre = particle.Velocity * normalisedDelta.Dot(particle.Velocity);
+
+                        particle.Velocity *= 0.0f;// += velocityTowardsCentre;
+                    }
+                }
+            }
+        }
+
+        private void ApplyForces()
+        {
+            for (int i = 0; i < _currentBoxes.Length; i++)
+            {
+                var coord = GetLocFromId(i);
+                var box1 = _previousBoxes[i];
+
+                foreach (var writeParticle in box1.Particles)
+                {
+                    if (writeParticle.Id == _nullParticle.Id) continue;
+
+                    foreach (var dir in _directions)
+                    {
+                        var box2 = GetBox(coord + dir, _previousBoxes);
+
+                        foreach (var readParticle in box2.Particles)
+                        {
+                            if (readParticle.Id <= writeParticle.Id) continue;
+                            if (readParticle.Id == _nullParticle.Id) continue;
+
+                            var force = CalcGasForce(readParticle, writeParticle);
+
+                            writeParticle.Velocity += force / writeParticle.Mass;
+                            readParticle.Velocity -= force / readParticle.Mass;
+                        }
+                    }
+                }
+            }
+        }
+
+        private Vector3 CalcGasForce(Particle particle1, Particle particle2)
+        {
+            const float k = 0.01f;
+            var densityDiff = particle1.Density - particle2.Density;
+
+            var delta = particle1.Position - particle2.Position;
+            var pressureGradient = densityDiff / delta.Length;
+            var normalisedDelta = delta / delta.Length;
+
+            return normalisedDelta * -pressureGradient * k;
         }
 
         private void CalcDensities()
@@ -203,8 +268,9 @@ namespace CPUTestBed
                     {
                         continue;
                     }
+                    
                     box.Particles[i].Mass = 1.0f;
-                    box.Particles[i].Velocity.X = 1.0f;
+                    box.Particles[i].Velocity = new Vector3() { X = 1.0f, Y = particle.Velocity.Y, Z = particle.Velocity.Z };
                 }
             }
         }
@@ -385,7 +451,8 @@ namespace CPUTestBed
                         int col = (int)(particle.Density * 1.0f);
                         if (col > 255) col = 255;
                         if (col < 0) throw new Exception();
-                        _backBuffer[backBufferId + 0] = (byte)col;
+                        //col = 255;
+                        _backBuffer[backBufferId + 0] = 255;
                         _backBuffer[backBufferId + 1] = (byte)col;
                         _backBuffer[backBufferId + 2] = (byte)col;
                     }

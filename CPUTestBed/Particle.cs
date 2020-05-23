@@ -14,11 +14,11 @@ namespace CPUTestBed
             };
     }
 
-    public class Vector3
+    public struct Vector3
     {
         public float X { get; set; }
         public float Y { get; set; }
-        public float Z { get; set; }
+        public float Z { get { return 0.0f; } set { } }
 
         public static Vector3 operator +(Vector3 a, Vector3 b)
             => new Vector3()
@@ -51,16 +51,36 @@ namespace CPUTestBed
                 Z = a.Z / b
             };
 
-        public Vector3() { }
-
         public Vector3(Random random, float scale, float offsetX, float offsetY)
         {
             X = (float)random.NextDouble() * scale + offsetX;
             Y = (float)random.NextDouble() * scale + offsetY;
             Z = (float)random.NextDouble() * scale + 0.0f;
         }
+        public static Vector3 operator +(Vector3 a, Int2 b)
+           => new Vector3()
+           {
+               X = a.X + b.X,
+               Y = a.Y + b.Y,
+               Z = a.Z
+           };
 
-        public float Length => MathF.Sqrt(X * X + Y * Y + Z * Z);
+        public float Length => MathF.Sqrt((X * X) + (Y * Y) + (Z * Z));
+
+        internal float Dot(Vector3 other)
+        {
+            return (X * other.X) + (Y * other.Y) + (Z * other.Z);
+        }
+
+        internal Vector3 Floor()
+        {
+            return new Vector3() 
+            { 
+                X = MathF.Floor(X),
+                Y = MathF.Floor(Y),
+                Z = MathF.Floor(Z)
+            };
+        }
     }
 
     public class Particle

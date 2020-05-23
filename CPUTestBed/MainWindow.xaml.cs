@@ -1,7 +1,6 @@
 ﻿using System.Windows;
-using CPUTestBed;
 
-namespace CPUTestBes
+namespace CPUTestBed
 {
     /// <summary>
     /// Interaction logic for MainWindow.xaml
@@ -10,7 +9,7 @@ namespace CPUTestBes
     {
         public MainWindow()
         {
-            DataContext = new Simulation();
+            DataContext = new GridBased.GridSimulation();
             InitializeComponent();
         }
     }
