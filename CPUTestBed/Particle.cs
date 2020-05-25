@@ -57,6 +57,14 @@ namespace CPUTestBed
             Y = (float)random.NextDouble() * scale + offsetY;
             Z = (float)random.NextDouble() * scale + 0.0f;
         }
+
+        public Vector3(float x, float y, float z)
+        {
+            X = x;
+            Y = y;
+            Z = z;
+        }
+
         public static Vector3 operator +(Vector3 a, Int2 b)
            => new Vector3()
            {

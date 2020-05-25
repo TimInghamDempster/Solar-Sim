@@ -18,6 +18,66 @@ namespace CPUTestBed.GridBased
         public Vector3 Velocity { get; set; }
     }
 
+    class Grid
+    {
+        private readonly int _width;
+        private readonly int _height;
+
+        public GridPoint[] Points { get; }
+
+        public Grid(int width, int height)
+        {
+            Points = new GridPoint[width * height];
+            _width = width;
+            _height = height;
+
+            for (int y = 0; y < height; y++)
+            {
+                int id = ToGridId(0, y);
+            }
+        }
+
+        public int ToGridId(int x, int y)
+        {
+            if (x < 0 || x >= _width ||
+                y < 0 || y >= _width)
+            {
+                return -1;
+            }
+
+            return x + y * _width;
+        }
+
+        internal void BuildFromHigherRes(Grid higherResGrid, int minifaction)
+        {
+            for (int y = 0; y < _height; y++)
+            {
+                for (int x = 0; x < _width; x++)
+                {
+                    int id = ToGridId(x, y);
+                    float cumulativePressure = 0.0f;
+                    Vector3 centreOfPressure = new Vector3(0.0f, 0.0f, 0.0f);
+
+                    for(int dy = 0; dy < minifaction; dy++)
+                    {
+
+                        for (int dx = 0; dx < minifaction; dx++)
+                        {
+                            int higherResId =
+                                higherResGrid.ToGridId(
+                                    x * minifaction + dx,
+                                    y * minifaction + dy);
+
+                            var highResPoint = higherResGrid.Points[higherResId];
+                            cumulativePressure += highResPoint.pressure;
+                        }
+                    }
+                    Points[id].pressure = cumulativePressure;
+                }
+            }
+        }
+    }
+
     class GridSimulation : INotifyPropertyChanged
     {
         public ImageSource BackBufferSource { get; private set; }
@@ -28,13 +88,17 @@ namespace CPUTestBed.GridBased
         private const int _bytesPerPixel = 4;
         private const int _backbufferStride = _renderWidth * _bytesPerPixel;
         private const int _particleCount = 1000;
+        private const int _mipLevels = 5;
+        private const int _minificationFactor = 4;
+        private const int _firstMinifactionFactor = 2;
 
         public int RenderWidth => _renderWidth;
         public int RenderHeight => _renderHeight;
 
         private readonly byte[] _backBuffer = new byte[_renderWidth * _renderHeight * _bytesPerPixel];
 
-        GridPoint[] _grid = new GridPoint[_renderWidth + _renderHeight * _renderWidth];
+        private readonly Grid[] _grids;
+
         Particle[] _particles = new Particle[_particleCount];
 
         private readonly Int2[] _cornerOffsets =
@@ -53,7 +117,27 @@ namespace CPUTestBed.GridBased
             CompositionTarget.Rendering += (o,e) => RunSimulation();
             _random = new Random();
 
+            _grids = new Grid[_mipLevels];
+            InitGrids();
+
             InitParticles();
+        }
+
+        private void InitGrids()
+        {
+            int currentWidth = _renderWidth;
+            int currentHeight = _renderHeight;
+
+            _grids[0] = new Grid(currentWidth, currentHeight);
+            currentHeight /= _firstMinifactionFactor;
+            currentWidth /= _firstMinifactionFactor;
+
+            for(int i = 1; i < _mipLevels; i++)
+            {
+                _grids[i] = new Grid(currentWidth, currentHeight);
+                currentHeight /= _minificationFactor;
+                currentWidth /= _minificationFactor;
+            }
         }
 
         private float rnd => (float)_random.NextDouble();
@@ -81,6 +165,9 @@ namespace CPUTestBed.GridBased
             MoveParticles();
             ClearPressureGrid();
             PushPressuresToGrid();
+            CascadePressuresToLowerResolutions();
+
+            ApplyBoundaryConditions();
 
             ClearBackbuffer();
             DrawGrid();
@@ -100,16 +187,49 @@ namespace CPUTestBed.GridBased
             _framecount++;
         }
 
+        private void ApplyBoundaryConditions()
+        {
+            for (int i = 0; i < _particleCount; i++)
+            {
+                var particle = _particles[i];
+
+                if(particle.Position.X < 0.0f && particle.Velocity.X < 0.0f||
+                    particle.Position.X > _renderWidth && particle.Velocity.X > 0.0f)
+                {
+                    _particles[i].Velocity = new Vector3() { X = particle.Velocity.X * -1.0f, Y = particle.Velocity.Y };
+                }
+
+                if (particle.Position.Y < 0.0f && particle.Velocity.Y < 0.0f ||
+                    particle.Position.Y > _renderHeight && particle.Velocity.Y > 0.0f)
+                {
+                    _particles[i].Velocity = new Vector3() { X = particle.Velocity.X, Y = particle.Velocity.Y * -1.0f };
+                }
+            }
+        }
+
+        private void CascadePressuresToLowerResolutions()
+        {
+            _grids[1].BuildFromHigherRes(_grids[0], _firstMinifactionFactor);
+
+            for (int i = 2; i < _mipLevels; i++)
+            {
+                _grids[i].BuildFromHigherRes(_grids[i - 1], _minificationFactor);
+            }
+        }
+
         private void ClearPressureGrid()
         {
-            for(int i = 0; i < _grid.Length; i++)
+            var gridPoints = _grids.First().Points;
+            for (int i = 0; i < gridPoints.Length; i++)
             {
-                _grid[i].pressure = 0.0f;
+                gridPoints[i].pressure = 0.0f;
             }
         }
 
         private void PushPressuresToGrid()
         {
+            var grid = _grids.First();
+            var gridPoints = grid.Points;
             foreach (var particle in _particles)
             {
                 foreach (var cornerOffset in _cornerOffsets)
@@ -122,10 +242,10 @@ namespace CPUTestBed.GridBased
 
                     var pressureAtCorner = MathsStuff.LerpClamp(0, 1, distance / MathF.Sqrt(2.0f));
 
-                    var cornerIndex = ToGridId((int)cornerPos.X, (int)cornerPos.Y);
+                    var cornerIndex = grid.ToGridId((int)cornerPos.X, (int)cornerPos.Y);
                     if (cornerIndex == -1) continue;
 
-                    _grid[cornerIndex].pressure += pressureAtCorner;
+                    gridPoints[cornerIndex].pressure += pressureAtCorner;
                 }
             }
         }
@@ -152,18 +272,31 @@ namespace CPUTestBed.GridBased
 
         private void DrawGrid()
         {
+            var grid = _grids[3];
+            var gridPoints = grid.Points;
+            const int mask = 255;
+            const int scale = 32;
+            const double luminanceScale = (256 / scale - 1.0);
+
             for (int y = 0; y < _renderHeight; y++)
             {
+                int bbId = ToBackBufferId(0, y);
+                //int gridId = grid.ToGridId(0, y);
+
                 for (int x = 0; x < _renderWidth; x++)
                 {
-                    int bbId = ToBackBufferId(x, y);
-                    int gridId = ToGridId(x, y);
+                    int gridId = grid.ToGridId(x / scale, y / scale);
+                    int density = (int)(gridPoints[gridId].pressure * luminanceScale);
 
-                    int density = (int)(_grid[gridId].pressure * 255);
-
-                    if (density > 255) density = 255;
+                    // Clamp within byte size limit, way faster than if-assign
+                    density &= mask;
 
                     _backBuffer[bbId] = (byte)density;
+                    _backBuffer[bbId + 3] = 255;
+
+                    // Way faster than calculating every time (like, 20% of frame budget faster)
+                    //gridId++;
+                    bbId += _bytesPerPixel;
                 }
             }
         }
@@ -178,23 +311,9 @@ namespace CPUTestBed.GridBased
             return x * _bytesPerPixel + y * _backbufferStride;
         }
 
-        private int ToGridId(int x, int y)
-        {
-            if(x < 0 || x >= _renderWidth ||
-                y < 0 || y >= _renderWidth)
-            {
-                return -1;
-            }
-
-            return x + y * _renderWidth;
-        }
-
         private void ClearBackbuffer()
         {
-            for (int i = 0; i < _backBuffer.Length; i++)
-            {
-                _backBuffer[i] = (byte)(i % 4 != 3 ? 0 : 255);
-            }
+            Array.Clear(_backBuffer, 0, _backBuffer.Length);
         }
     }
 }
