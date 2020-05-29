@@ -76,6 +76,28 @@ namespace CPUTestBed.GridBased
                 }
             }
         }
+
+        internal void SampleFromTree(Grid[] grids, (Int2 location, float weight)[] sampleSites)
+        {
+            var sampleGrid = grids[0];
+
+            for (int y = 2; y < _width - 2; y++)
+            {
+                int id = ToGridId(2, y);
+                for (int x = 2; x < _width - 2; x++)
+                {
+                    Points[id].pressure = 0.0f;
+                    foreach (var sampleSite in sampleSites)
+                    {
+                        var sampleId = sampleGrid.ToGridId(x + sampleSite.location.X, y + sampleSite.location.Y);
+
+                        Points[id].pressure += sampleGrid.Points[sampleId].pressure * sampleSite.weight;
+                    }
+                    Points[id].pressure += sampleGrid.Points[id].pressure;
+                   id++;
+                }
+            }
+        }
     }
 
     class GridSimulation : INotifyPropertyChanged
@@ -87,17 +109,20 @@ namespace CPUTestBed.GridBased
         private const int _renderHeight = 1024;
         private const int _bytesPerPixel = 4;
         private const int _backbufferStride = _renderWidth * _bytesPerPixel;
-        private const int _particleCount = 1000;
+        private const int _particleCount = 5000;
         private const int _mipLevels = 5;
         private const int _minificationFactor = 4;
         private const int _firstMinifactionFactor = 2;
+        private const int _l0KernelWidth = 5;
+        private const float _zoom = 1.0f;
 
         public int RenderWidth => _renderWidth;
         public int RenderHeight => _renderHeight;
 
         private readonly byte[] _backBuffer = new byte[_renderWidth * _renderHeight * _bytesPerPixel];
 
-        private readonly Grid[] _grids;
+        private readonly Grid[] _gridTree;
+        private readonly Grid _pressureGrid = new Grid(_renderWidth, _renderHeight);
 
         Particle[] _particles = new Particle[_particleCount];
 
@@ -109,6 +134,8 @@ namespace CPUTestBed.GridBased
             new Int2(){X = 1, Y = 1},
         };
 
+        private (Int2, float)[] _l0SampleSites;
+
         private int _framecount;
         private readonly Random _random;
 
@@ -117,10 +144,32 @@ namespace CPUTestBed.GridBased
             CompositionTarget.Rendering += (o,e) => RunSimulation();
             _random = new Random();
 
-            _grids = new Grid[_mipLevels];
+            _gridTree = new Grid[_mipLevels];
             InitGrids();
 
             InitParticles();
+
+            InitSampleSites();
+        }
+
+        private void InitSampleSites()
+        {
+            _l0SampleSites = new (Int2, float)[(_l0KernelWidth * _l0KernelWidth) - 1];
+            var kernelHalfWidth = _l0KernelWidth / 2;
+            var sampleIndex = 0;
+
+            for(int y = -kernelHalfWidth; y <= kernelHalfWidth; y++)
+            {
+                for (int x = -kernelHalfWidth; x <= kernelHalfWidth; x++)
+                {
+                    // Pressure is degenerate at our own location
+                    if (x == 0 && y == 0) continue;
+
+                    float distSq = x * x + y * y;
+                    _l0SampleSites[sampleIndex] = (new Int2() {X = x, Y = y }, 1.0f / distSq);
+                    sampleIndex++;
+                }
+            }    
         }
 
         private void InitGrids()
@@ -128,13 +177,13 @@ namespace CPUTestBed.GridBased
             int currentWidth = _renderWidth;
             int currentHeight = _renderHeight;
 
-            _grids[0] = new Grid(currentWidth, currentHeight);
+            _gridTree[0] = new Grid(currentWidth, currentHeight);
             currentHeight /= _firstMinifactionFactor;
             currentWidth /= _firstMinifactionFactor;
 
             for(int i = 1; i < _mipLevels; i++)
             {
-                _grids[i] = new Grid(currentWidth, currentHeight);
+                _gridTree[i] = new Grid(currentWidth, currentHeight);
                 currentHeight /= _minificationFactor;
                 currentWidth /= _minificationFactor;
             }
@@ -163,9 +212,10 @@ namespace CPUTestBed.GridBased
         private void RunSimulation()
         {
             MoveParticles();
-            ClearPressureGrid();
+            ClearGridTree();
             PushPressuresToGrid();
             CascadePressuresToLowerResolutions();
+            _pressureGrid.SampleFromTree(_gridTree, _l0SampleSites);
 
             ApplyBoundaryConditions();
 
@@ -209,17 +259,17 @@ namespace CPUTestBed.GridBased
 
         private void CascadePressuresToLowerResolutions()
         {
-            _grids[1].BuildFromHigherRes(_grids[0], _firstMinifactionFactor);
+            _gridTree[1].BuildFromHigherRes(_gridTree[0], _firstMinifactionFactor);
 
             for (int i = 2; i < _mipLevels; i++)
             {
-                _grids[i].BuildFromHigherRes(_grids[i - 1], _minificationFactor);
+                _gridTree[i].BuildFromHigherRes(_gridTree[i - 1], _minificationFactor);
             }
         }
 
-        private void ClearPressureGrid()
+        private void ClearGridTree()
         {
-            var gridPoints = _grids.First().Points;
+            var gridPoints = _gridTree.First().Points;
             for (int i = 0; i < gridPoints.Length; i++)
             {
                 gridPoints[i].pressure = 0.0f;
@@ -228,11 +278,11 @@ namespace CPUTestBed.GridBased
 
         private void PushPressuresToGrid()
         {
-            var grid = _grids.First();
+            var grid = _gridTree.First();
             var gridPoints = grid.Points;
             foreach (var particle in _particles)
             {
-                foreach (var cornerOffset in _cornerOffsets)
+                /*foreach (var cornerOffset in _cornerOffsets)
                 {
                     var cornerPos = 
                         particle.Position.Floor() + cornerOffset;
@@ -245,8 +295,12 @@ namespace CPUTestBed.GridBased
                     var cornerIndex = grid.ToGridId((int)cornerPos.X, (int)cornerPos.Y);
                     if (cornerIndex == -1) continue;
 
-                    gridPoints[cornerIndex].pressure += pressureAtCorner;
-                }
+                    gridPoints[cornerIndex].pressure += 1.0f;// pressureAtCorner;
+                }*/
+
+                var cornerIndex = grid.ToGridId((int)particle.Position.X, (int)particle.Position.Y);
+                if (cornerIndex == -1) continue;
+                gridPoints[cornerIndex].pressure += 1.0f;// pressureAtCorner;
             }
         }
 
@@ -262,7 +316,7 @@ namespace CPUTestBed.GridBased
         {
             foreach(var particle in _particles)
             {
-                var id = ToBackBufferId((int)particle.Position.X, (int)particle.Position.Y);
+                var id = ToBackBufferId((int)(particle.Position.X * _zoom), (int)(particle.Position.Y * _zoom));
 
                 if (id == -1) continue;
 
@@ -272,11 +326,10 @@ namespace CPUTestBed.GridBased
 
         private void DrawGrid()
         {
-            var grid = _grids[3];
+            var grid = _pressureGrid;
             var gridPoints = grid.Points;
             const int mask = 255;
-            const int scale = 32;
-            const double luminanceScale = (256 / scale - 1.0);
+            const double luminanceScale = 127;
 
             for (int y = 0; y < _renderHeight; y++)
             {
@@ -285,7 +338,7 @@ namespace CPUTestBed.GridBased
 
                 for (int x = 0; x < _renderWidth; x++)
                 {
-                    int gridId = grid.ToGridId(x / scale, y / scale);
+                    int gridId = grid.ToGridId(x / (int)_zoom, y / (int)_zoom);
                     int density = (int)(gridPoints[gridId].pressure * luminanceScale);
 
                     // Clamp within byte size limit, way faster than if-assign
