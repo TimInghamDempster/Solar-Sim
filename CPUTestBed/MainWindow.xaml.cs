@@ -9,7 +9,7 @@ namespace CPUTestBed
     {
         public MainWindow()
         {
-            DataContext = new GridBased.GridSimulation();
+            DataContext = new StretchyGridBased.StretchyGrid();
             InitializeComponent();
         }
     }

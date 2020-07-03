@@ -11,7 +11,7 @@
         WindowStartupLocation="CenterScreen" 
         WindowState="Maximized"
         d:DataContext="{d:DesignInstance cpuTestBed:Simulation}">
-    <Grid Width="{Binding RenderWidth}" Height="{Binding RenderHeight}">
+    <Grid>
         <Image Source="{Binding BackBufferSource}"/>
     </Grid>
 </Window>
